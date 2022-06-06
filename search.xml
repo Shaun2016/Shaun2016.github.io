@@ -913,11 +913,11 @@
 <figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">siftDown</span><span class="params">(<span class="type">int</span>[] arr, <span class="type">int</span> index, <span class="type">int</span> heapSize)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">leftChildIndex</span> <span class="operator">=</span> index * <span class="number">2</span> + <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">while</span> (leftChildIndex &lt;heapSize) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">largest</span> <span class="operator">=</span> leftChildIndex + <span class="number">1</span> &lt; heapSize &amp;&amp; arr[leftChildIndex + <span class="number">1</span>] &gt; arr[leftChildIndex] ?</span><br><span class="line">                leftChildIndex + <span class="number">1</span> : leftChildIndex;</span><br><span class="line">        largest = arr[largest] &gt; arr[index] ? largest : index;</span><br><span class="line">        <span class="keyword">if</span> (largest == index) &#123;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        swap(arr, index, largest);</span><br><span class="line">        index = largest;</span><br><span class="line">        leftChildIndex = index * <span class="number">2</span> + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h5 id="向堆中插入元素"><a href="#向堆中插入元素" class="headerlink" title="向堆中插入元素"></a>向堆中插入元素</h5><p>将堆大小加一，插入的元素放在数组末尾（堆尾），再将堆尾节点上升</p>
-<p><img src="/../../images/algorithm/image-20220604151952452.png" alt="image-20220604152134239"></p>
+<p><img data-src="/../../images/algorithm/image-20220604151952452.png" alt="image-20220604152134239"></p>
 <figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">add</span><span class="params">(<span class="type">int</span> n)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">this</span>.size &gt;= arr.length) &#123;</span><br><span class="line">        <span class="comment">// 数组扩容：复制已有值，长度变为原来的二倍</span></span><br><span class="line">        <span class="built_in">this</span>.grow();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="built_in">this</span>.size ++;</span><br><span class="line">    <span class="built_in">this</span>.arr[<span class="built_in">this</span>.size-<span class="number">1</span>] = n;</span><br><span class="line">    <span class="comment">// 将数组末尾元素上升</span></span><br><span class="line">    siftUp(<span class="built_in">this</span>.arr, <span class="built_in">this</span>.size-<span class="number">1</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h5 id="弹出最大值"><a href="#弹出最大值" class="headerlink" title="弹出最大值"></a>弹出最大值</h5><p>将数组0位置元素（堆顶）与最后位置元素（堆尾）交互，有效长度减一，再将堆顶元素下沉</p>
-<p><img src="/../../images/algorithm/image-20220604161702736.png" alt="image-20220604161702736"></p>
+<p><img data-src="/../../images/algorithm/image-20220604161702736.png" alt="image-20220604161702736"></p>
 <figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">poll</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">this</span>.isEmpty()) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">RuntimeException</span>(<span class="string">&quot;堆已空，无法弹出元素&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="type">int</span> <span class="variable">root</span> <span class="operator">=</span> <span class="built_in">this</span>.arr[<span class="number">0</span>];</span><br><span class="line">    swap(<span class="built_in">this</span>.arr, <span class="number">0</span>, <span class="built_in">this</span>.size-<span class="number">1</span>);</span><br><span class="line">    <span class="built_in">this</span>.size --;</span><br><span class="line">    <span class="comment">// 新的堆顶元素下沉</span></span><br><span class="line">    <span class="built_in">this</span>.siftDown(<span class="built_in">this</span>.arr, <span class="number">0</span>, <span class="built_in">this</span>.size);</span><br><span class="line">    <span class="keyword">return</span> root;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h4 id="堆排序"><a href="#堆排序" class="headerlink" title="堆排序"></a>堆排序</h4><p>问题描述：给定一个无序数组，将其升序排列</p>
@@ -973,6 +973,16 @@
 <ol>
 <li>如何合理的让堆的数据动态扩容</li>
 </ol>
+<h2 id="JDK中PriorityQueue代码解读"><a href="#JDK中PriorityQueue代码解读" class="headerlink" title="JDK中PriorityQueue代码解读"></a>JDK中PriorityQueue代码解读</h2><h3 id="Object-queue-的动态扩容方法"><a href="#Object-queue-的动态扩容方法" class="headerlink" title="Object[] queue 的动态扩容方法"></a>Object[] queue 的动态扩容方法</h3><blockquote>
+<p>由于每次扩容都需要拷贝整个数组，故需要控制扩容的次数不要太频繁；如果每次扩容量太大，可以减少扩容频率，但存在空间的浪费</p>
+<p>如何找到二者的平衡呢，下面是JDK的实现方案</p>
+</blockquote>
+<p>设置最小扩容量minCapacity，每次需要扩容时，扩容到原size的1.5倍，如果这个扩容量没有达到minCapacity，则直接扩容到minCapacity</p>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">grow</span><span class="params">(<span class="type">int</span> minCapacity)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">oldCapacity</span> <span class="operator">=</span> queue.length;</span><br><span class="line">    <span class="comment">// Double size if small; else grow by 50%</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">newCapacity</span> <span class="operator">=</span> ArraysSupport.newLength(oldCapacity,</span><br><span class="line">           minCapacity - oldCapacity, <span class="comment">/* minimum growth */</span></span><br><span class="line">           oldCapacity &lt; <span class="number">64</span> ? oldCapacity + <span class="number">2</span> : oldCapacity &gt;&gt; <span class="number">1</span></span><br><span class="line">                                      <span class="comment">/* preferred growth */</span>);</span><br><span class="line">    queue = Arrays.copyOf(queue, newCapacity);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="为什么-Object-queue-前要加-transient"><a href="#为什么-Object-queue-前要加-transient" class="headerlink" title="为什么 Object[] queue 前要加 transient"></a>为什么 Object[] queue 前要加 transient</h3><p>transient 令属性不再可序列化和反序列化</p>
+<p><strong>transient 的使用场景</strong>：一些不应该设为 static 的属性，不进行序列化（静态属性不会被序列化），如 Logger 实例，安全性的信息</p>
+<p><strong>transient 的原因</strong>：由于 Object[] queue 的长度是动态扩容产生的，即根据heapSize，设定合理的queue长度，故queue中存在很多没有存储实际数据的空间，将 queue 整体直接序列化，可能存在空间浪费。通过 writeObject 序列化，可通过 heapSize 自行控制，只序列化实际存储数据部分的queue；而利用 readObject 反序列化时，先获取 heapSize，再初始化queue中的值，并根据heapSize，动态设定合理的容量</p>
 ]]></content>
       <categories>
         <category>algorithm</category>
@@ -1232,18 +1242,18 @@
 <li>大火烧开，小火炖四十分钟，检查肉质</li>
 <li>肉快熟，放入生抽、老抽、豆角、土豆、盐、白糖，炖熟，至汤粘稠，出锅前放入鸡精，简单搅拌</li>
 </ol>
-<p><img src="/../images/food/paigu.jpg" alt="排骨豆角"></p>
+<p><img data-src="/../images/food/paigu.jpg" alt="排骨豆角"></p>
 <h2 id="水煮大虾"><a href="#水煮大虾" class="headerlink" title="水煮大虾"></a>水煮大虾</h2><ol>
 <li>清水，放入葱姜料酒，开锅</li>
 <li>放入清理后的大虾，煮1分半至2分钟</li>
 </ol>
-<p><img src="/../images/food/xia.jpg" alt="排骨豆角"></p>
+<p><img data-src="/../images/food/xia.jpg" alt="白灼虾"></p>
 <h2 id="可乐鸡翅"><a href="#可乐鸡翅" class="headerlink" title="可乐鸡翅"></a>可乐鸡翅</h2><ol>
 <li>清洗、背部划口</li>
 <li>抄水，锅热加油，煎至焦黄</li>
 <li>加葱姜可乐半罐，盐，酱油，炖二十分钟</li>
 </ol>
-<p><img src="/../images/food/kljc.jpg" alt="排骨豆角"></p>
+<p><img data-src="/../images/food/kljc.jpg" alt="可乐鸡翅"></p>
 <p>待续…</p>
 ]]></content>
       <categories>
