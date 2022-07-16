@@ -1476,7 +1476,7 @@
 <p>返回 <em>所有可能的有效组合的列表</em> 。该列表不能包含相同的组合两次，组合可以以任何顺序返回</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">输入: k = 3, n = 9</span><br><span class="line">输出: [[1,2,6], [1,3,5], [2,3,4]]</span><br></pre></td></tr></table></figure>
 
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">combinationSum3</span><span class="params">(<span class="type">int</span> k, <span class="type">int</span> n)</span> &#123;</span><br><span class="line">        List&lt;Integer&gt; path = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        traceForCombinationSum3(k, n, <span class="number">1</span>, <span class="number">0</span>, path, res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForCombinationSum3</span><span class="params">(<span class="type">int</span> k, <span class="type">int</span> n, <span class="type">int</span> start, <span class="type">int</span> sum, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (sum == n &amp;&amp; k == <span class="number">0</span>) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(path));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (k == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 回溯过程</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt;= <span class="number">9</span>; i++) &#123;</span><br><span class="line">            path.add(i);</span><br><span class="line">            traceForCombinationSum3(k-<span class="number">1</span>, n, i+<span class="number">1</span>, sum + i, path, res);</span><br><span class="line">            path.remove(path.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">combinationSum3</span><span class="params">(<span class="type">int</span> k, <span class="type">int</span> n)</span> &#123;</span><br><span class="line">        List&lt;Integer&gt; path = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        traceForCombinationSum3(k, n, <span class="number">1</span>, <span class="number">0</span>, path, res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForCombinationSum3</span><span class="params">(<span class="type">int</span> k, <span class="type">int</span> n, <span class="type">int</span> start, <span class="type">int</span> sum, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (sum == n &amp;&amp; k == <span class="number">0</span>) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(path));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (sum &gt; n || k == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 回溯过程</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt;= <span class="number">9</span>; i++) &#123;</span><br><span class="line">            path.add(i);</span><br><span class="line">            traceForCombinationSum3(k-<span class="number">1</span>, n, i+<span class="number">1</span>, sum + i, path, res);</span><br><span class="line">            path.remove(path.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h4 id="17-电话号码的字母组合"><a href="#17-电话号码的字母组合" class="headerlink" title="17. 电话号码的字母组合"></a><a href="https://leetcode.cn/problems/letter-combinations-of-a-phone-number/">17. 电话号码的字母组合</a></h4><p>给定一个仅包含数字 <code>2-9</code> 的字符串，返回所有它能表示的字母组合。答案可以按 <strong>任意顺序</strong> 返回。</p>
 <p>给出数字到字母的映射如下（与电话按键相同）。注意 1 不对应任何字母</p>
@@ -1488,7 +1488,7 @@
 <p><code>candidates</code> 中的 <strong>同一个</strong> 数字可以 <strong>无限制重复被选取</strong> 。如果至少一个数字的被选数量不同，则两种组合是不同的</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">输入: candidates = [2,3,5], target = 8</span><br><span class="line">输出: [[2,2,2,2],[2,3,3],[3,5]]</span><br></pre></td></tr></table></figure>
 
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">combinationSum</span><span class="params">(<span class="type">int</span>[] candidates, <span class="type">int</span> target)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (candidates == <span class="literal">null</span> || candidates.length == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        &#125;</span><br><span class="line">        Arrays.sort(candidates);</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        traceForCombinationSum(candidates, <span class="number">0</span>, target, <span class="number">0</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForCombinationSum</span><span class="params">(<span class="type">int</span>[] candidates, <span class="type">int</span> sum, <span class="type">int</span> target, <span class="type">int</span> start,</span></span><br><span class="line"><span class="params">                                        List&lt;Integer&gt; arr, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="comment">// 终止条件</span></span><br><span class="line">        <span class="keyword">if</span> (sum == target) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(arr));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (sum &gt; target) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 回溯过程</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; candidates.length; i++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (sum + candidates[i] &gt; target) &#123;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            arr.add(candidates[i]);</span><br><span class="line">            traceForCombinationSum(candidates, sum + candidates[i], target, i, arr, res);</span><br><span class="line">            arr.remove(arr.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">combinationSum</span><span class="params">(<span class="type">int</span>[] candidates, <span class="type">int</span> target)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (candidates == <span class="literal">null</span> || candidates.length == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        &#125;</span><br><span class="line">        Arrays.sort(candidates);</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        traceForCombinationSum(candidates, <span class="number">0</span>, target, <span class="number">0</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForCombinationSum</span><span class="params">(<span class="type">int</span>[] candidates, <span class="type">int</span> sum, <span class="type">int</span> target, <span class="type">int</span> start,</span></span><br><span class="line"><span class="params">                                        List&lt;Integer&gt; arr, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (sum &gt; target) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 终止条件</span></span><br><span class="line">        <span class="keyword">if</span> (sum == target) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(arr));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 回溯过程</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; candidates.length; i++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (sum + candidates[i] &gt; target) &#123;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            arr.add(candidates[i]);</span><br><span class="line">            traceForCombinationSum(candidates, sum + candidates[i], target, i, arr, res);</span><br><span class="line">            arr.remove(arr.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h4 id="40-组合总和-II"><a href="#40-组合总和-II" class="headerlink" title="40. 组合总和 II"></a><a href="https://leetcode.cn/problems/combination-sum-ii/">40. 组合总和 II</a></h4><p>给定一个候选人编号的集合 <code>candidates</code> 和一个目标数 <code>target</code> ，找出 <code>candidates</code> 中所有可以使数字和为 <code>target</code> 的组合。</p>
 <p><code>candidates</code> 中的每个数字在每个组合中只能使用 <strong>一次</strong> 。</p>
@@ -1516,13 +1516,13 @@
 <h4 id="78-子集"><a href="#78-子集" class="headerlink" title="78. 子集"></a><a href="https://leetcode.cn/problems/subsets/">78. 子集</a></h4><p>给你一个整数数组 <code>nums</code> ，数组中的元素 <strong>互不相同</strong> 。返回该数组所有可能的子集（幂集）</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">输入：nums = [1,2,3]</span><br><span class="line">输出：[[],[1],[2],[1,2],[3],[1,3],[2,3],[1,2,3]]</span><br></pre></td></tr></table></figure>
 
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        <span class="keyword">if</span> (nums == <span class="literal">null</span> || nums.length == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> res;</span><br><span class="line">        &#125;</span><br><span class="line">        trace(nums, <span class="number">0</span>, <span class="literal">true</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">trace</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> start, <span class="type">boolean</span> next, List&lt;Integer&gt; subSet, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (!next) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subSet));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        trace(nums, start, <span class="literal">false</span>, subSet, res);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; nums.length; i++) &#123;</span><br><span class="line">            subSet.add(nums[i]);</span><br><span class="line">            trace(nums, i+<span class="number">1</span>, <span class="literal">true</span>, subSet, res);</span><br><span class="line">            subSet.remove(subSet.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        <span class="keyword">if</span> (nums == <span class="literal">null</span> || nums.length == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> res;</span><br><span class="line">        &#125;</span><br><span class="line">        trace(nums, <span class="number">0</span>, <span class="literal">true</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">trace</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> start, <span class="type">boolean</span> next, List&lt;Integer&gt; subSet, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subSet));</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; nums.length; i++) &#123;</span><br><span class="line">            subSet.add(nums[i]);</span><br><span class="line">            trace(nums, i+<span class="number">1</span>, <span class="literal">true</span>, subSet, res);</span><br><span class="line">            subSet.remove(subSet.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h4 id="90-子集-II"><a href="#90-子集-II" class="headerlink" title="90. 子集 II"></a><a href="https://leetcode.cn/problems/subsets-ii/">90. 子集 II</a></h4><p>给你一个整数数组 <code>nums</code> ，其中可能包含重复元素，请你返回该数组所有可能的子集（幂集）</p>
 <p>解集 <strong>不能</strong> 包含重复的子集。返回的解集中，子集可以按 <strong>任意顺序</strong> 排列</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">输入：nums = [1,2,2]</span><br><span class="line">输出：[[],[1],[1,2],[1,2,2],[2],[2,2]]</span><br></pre></td></tr></table></figure>
 
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsetsWithDup</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        Arrays.sort(nums);</span><br><span class="line">        traceForSubsetsWithDup(nums, <span class="number">0</span>, <span class="literal">true</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForSubsetsWithDup</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> start, <span class="type">boolean</span> next,</span></span><br><span class="line"><span class="params">                                        List&lt;Integer&gt; subSet, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (!next) &#123;</span><br><span class="line">            res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subSet));</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        traceForSubsetsWithDup(nums, start, <span class="literal">false</span>, subSet, res);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; nums.length; i++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (i &gt; start &amp;&amp; nums[i] == nums[i-<span class="number">1</span>]) &#123;</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            subSet.add(nums[i]);</span><br><span class="line">            traceForSubsetsWithDup(nums, i+<span class="number">1</span>, <span class="literal">true</span>, subSet, res);</span><br><span class="line">            subSet.remove(subSet.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsetsWithDup</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">        List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">        Arrays.sort(nums);</span><br><span class="line">        traceForSubsetsWithDup(nums, <span class="number">0</span>, <span class="literal">true</span>, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(), res);</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">traceForSubsetsWithDup</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> start, <span class="type">boolean</span> next,</span></span><br><span class="line"><span class="params">                                        List&lt;Integer&gt; subSet, List&lt;List&lt;Integer&gt;&gt; res)</span> &#123;</span><br><span class="line">        res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subSet));</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> start; i &lt; nums.length; i++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (i &gt; start &amp;&amp; nums[i] == nums[i-<span class="number">1</span>]) &#123;</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            subSet.add(nums[i]);</span><br><span class="line">            traceForSubsetsWithDup(nums, i+<span class="number">1</span>, <span class="literal">true</span>, subSet, res);</span><br><span class="line">            subSet.remove(subSet.size() - <span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <p><strong>注：重点在于如果去重，与<a href="https://leetcode.cn/problems/combination-sum-ii/">40. 组合总和 II</a>思路相同</strong></p>
 <h4 id="491-递增子序列【难】"><a href="#491-递增子序列【难】" class="headerlink" title="491. 递增子序列【难】"></a><a href="https://leetcode.cn/problems/increasing-subsequences/">491. 递增子序列</a>【难】</h4><p>给你一个整数数组 <code>nums</code> ，找出并返回所有该数组中不同的递增子序列，递增子序列中 <strong>至少有两个元素</strong> 。你可以按 <strong>任意顺序</strong> 返回答案</p>
@@ -1566,7 +1566,7 @@
       </tags>
   </entry>
   <entry>
-    <title>栈与对列</title>
+    <title>栈与队列</title>
     <url>/2022/06/30/algorithm/stack-heap/</url>
     <content><![CDATA[<blockquote>
 <p>栈与队列相关算法题</p>
@@ -1627,6 +1627,195 @@
       <tags>
         <tag>贪心</tag>
         <tag>动态规划</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>数据库锁与事务</title>
+    <url>/2022/07/17/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E9%94%81/</url>
+    <content><![CDATA[<blockquote>
+<p>本文介绍数据库的乐观锁、悲观锁、事务、MVCC</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="乐观锁"><a href="#乐观锁" class="headerlink" title="乐观锁"></a>乐观锁</h2><h3 id="上锁流程"><a href="#上锁流程" class="headerlink" title="上锁流程"></a>上锁流程</h3><ol>
+<li>读取被操作对象，记录某个特征信息</li>
+<li>对对象进行业务逻辑处理</li>
+<li>数据回写前，检查特征信息是否有变化</li>
+<li>如果一致，回写；如果不一致，重试上述流程</li>
+</ol>
+<h3 id="性质"><a href="#性质" class="headerlink" title="性质"></a>性质</h3><p>乐观锁的本质是一种读写<strong>策略</strong>，没有真正的在被操作对象上加锁</p>
+<p>对于操作方，有可能失败重试，反复读写，牺牲了操作方的性能（利他策略），但提升了被操作对象的并发度</p>
+<h3 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h3><p>读多，极少修改，操作方重试概率低的场景</p>
+<h2 id="悲观锁"><a href="#悲观锁" class="headerlink" title="悲观锁"></a>悲观锁</h2><p>操作方对被操作对象加锁，等锁释放后其他操作方才能加锁（利己策略）</p>
+<h3 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h3><h4 id="S锁"><a href="#S锁" class="headerlink" title="S锁"></a>S锁</h4><p>Shared Lock，共享锁，读锁</p>
+<p>A加了S锁，其他人可以加S锁，不可加X锁</p>
+<p>如何加S锁（哪些操作会加S锁）：<code>select * from user where ... lock in shard mode;</code></p>
+<p>如何释放S锁：事务结束</p>
+<h4 id="X锁"><a href="#X锁" class="headerlink" title="X锁"></a>X锁</h4><p>Exclusive Lock，排他锁，写锁</p>
+<p>加了X锁，其他人不能加任何锁</p>
+<p>如何加X锁（哪些操作会加X锁）：<code>select * from user where ... for update;</code>，<code>insert</code>，<code>update</code>，<code>delete</code></p>
+<p>如何释放X锁：事务结束</p>
+<h4 id="U锁（SQLServer）"><a href="#U锁（SQLServer）" class="headerlink" title="U锁（SQLServer）"></a>U锁（SQLServer）</h4><p>更新锁，加了U锁，不能加U锁和X锁，可以加S锁（相当于加了S锁并预定了X锁）</p>
+<h3 id="加锁原则"><a href="#加锁原则" class="headerlink" title="加锁原则"></a>加锁原则</h3><p>最小知道原则</p>
+<h3 id="悲观锁的作用范围"><a href="#悲观锁的作用范围" class="headerlink" title="悲观锁的作用范围"></a>悲观锁的作用范围</h3><ol>
+<li>行锁</li>
+<li>页锁</li>
+<li>表锁</li>
+</ol>
+<h3 id="锁升级"><a href="#锁升级" class="headerlink" title="锁升级"></a>锁升级</h3><p>在RR隔离级别中，行锁是加在索引上，如果查询条件不走索引，会加表锁（升级）</p>
+<h4 id="实验：锁升级"><a href="#实验：锁升级" class="headerlink" title="实验：锁升级"></a>实验：锁升级</h4><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># clinet 1</span><br><span class="line">begin; </span><br><span class="line">select * from actor where first_name = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">update actor set first_name = &#x27;2&#x27; where id = 1;</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
+
+<h3 id="死锁"><a href="#死锁" class="headerlink" title="死锁"></a>死锁</h3><h4 id="死锁的条件"><a href="#死锁的条件" class="headerlink" title="死锁的条件"></a>死锁的条件</h4><ol>
+<li>互斥：一把钥匙，只能一个人纳</li>
+<li>不剥夺：一个人拿了钥匙，别人不能抢</li>
+<li>请求和保持：有了一个资源，不放手，还要请求其他资源</li>
+<li>循环等待：与另一个人的请求资源形成环</li>
+</ol>
+<h4 id="死锁的解决方案"><a href="#死锁的解决方案" class="headerlink" title="死锁的解决方案"></a>死锁的解决方案</h4><p>打破任意一个条件即可</p>
+<ol>
+<li>打破互斥条件：不用悲观锁，改为乐观锁</li>
+<li>打破不剥夺：A获取资源B，还要获取资源C，如果申请失败，A释放资源B</li>
+<li>打破请求和保持：保留和请求只留一个，如果需要持有两个资源，已持有一个，需放手后才能持有另一个</li>
+<li>打破循环等待：按顺序抢占锁</li>
+</ol>
+<h4 id="如何定位死锁"><a href="#如何定位死锁" class="headerlink" title="如何定位死锁"></a>如何定位死锁</h4><ol>
+<li>数据库死锁日志：<code>SHOW ENGINE INNODB STATUS;</code></li>
+<li>线程dump文件：<code>jmap -dump:format=b,file=&#123;filename&#125; &#123;pid&#125;</code></li>
+<li>进程堆栈信息：<code>jstack &#123;pid&#125;</code></li>
+</ol>
+<p>本文只介绍数据库层面，其他层面捎带</p>
+<h4 id="死锁实验"><a href="#死锁实验" class="headerlink" title="死锁实验"></a>死锁实验</h4><p>有对象C，有一个操作：先对C加S锁，再对C加X锁</p>
+<p>A对C加了S锁，B对C加了S锁，A对C加X锁失败，B对C加X锁也失败，A和B都不会主动释放C的S锁，产生了死锁</p>
+<p>什么场景会先加S后加X呢？</p>
+<h5 id="防止产生S与X锁死锁的解决方案"><a href="#防止产生S与X锁死锁的解决方案" class="headerlink" title="防止产生S与X锁死锁的解决方案"></a>防止产生S与X锁死锁的解决方案</h5><ol>
+<li>获取X锁失败后，主动释放S锁，重试</li>
+<li>使用U锁，允许其他人加S锁，但不能加U和X</li>
+<li>直接加X锁</li>
+</ol>
+<h5 id="实验1：S锁与X锁的阻塞情况"><a href="#实验1：S锁与X锁的阻塞情况" class="headerlink" title="实验1：S锁与X锁的阻塞情况"></a>实验1：S锁与X锁的阻塞情况</h5><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">## S 锁不能加X锁的情况</span><br><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">update actor set first_name = &#x27;Jan&#x27; where actor_id = 1;</span><br><span class="line"># 或者</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2 pending...</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br><span class="line"># client 2 running or wait timeout exceeded</span><br><span class="line">## X锁不能加S锁的情况</span><br><span class="line"># 同理</span><br></pre></td></tr></table></figure>
+
+<h5 id="实验2：数据库层面制造死锁并定位死锁"><a href="#实验2：数据库层面制造死锁并定位死锁" class="headerlink" title="实验2：数据库层面制造死锁并定位死锁"></a>实验2：数据库层面制造死锁并定位死锁</h5><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line">SHOW ENGINE INNODB STATUS;</span><br></pre></td></tr></table></figure>
+
+<h4 id="mysql如何自动处理死锁"><a href="#mysql如何自动处理死锁" class="headerlink" title="mysql如何自动处理死锁"></a>mysql如何自动处理死锁</h4><ol>
+<li>超时等待</li>
+<li>死锁检测：谁触发死锁谁回滚当前事务，其他事务继续执行</li>
+</ol>
+<h5 id="死锁检测的原理"><a href="#死锁检测的原理" class="headerlink" title="死锁检测的原理"></a>死锁检测的原理</h5><p>事务为顶点，锁为边（需求方指向持有方）<br>事务A持有L2锁，A需要L1锁，故有一条边由A指向B</p>
+<p>事务B持有L1锁，B需要L2锁，故有一条边由B指向A</p>
+<p><img data-src="/../../images/mysql/image-20220714030233959.png" alt="image-20220714030233959"></p>
+<h2 id="事务"><a href="#事务" class="headerlink" title="事务"></a>事务</h2><h3 id="事务正确执行的四个要素：ACID"><a href="#事务正确执行的四个要素：ACID" class="headerlink" title="事务正确执行的四个要素：ACID"></a>事务正确执行的四个要素：ACID</h3><p>A：atomicity 原子性，要么全做，要么全不做</p>
+<p>C：consistency 一致性，事务前后的数据是一致的</p>
+<p>I：isolation 隔离性，多个并发事务同时读写时，防止多个事务并发执行时由于交叉执行导致数据不一致</p>
+<p>D：durability 持久性 事务结束后，对数据的修改是永久的</p>
+<h3 id="事务的开始与结束"><a href="#事务的开始与结束" class="headerlink" title="事务的开始与结束"></a>事务的开始与结束</h3><p>开始：以第一个DML（Data Manipulation Language，如select, delete, update, insert）语句的执行开始</p>
+<p>结束：commit, rollback</p>
+<h3 id="事务的隔离"><a href="#事务的隔离" class="headerlink" title="事务的隔离"></a>事务的隔离</h3><h4 id="事务隔离解决的问题"><a href="#事务隔离解决的问题" class="headerlink" title="事务隔离解决的问题"></a>事务隔离解决的问题</h4><p>ACID中的ACD对并发事务和单一事务是没有区别的，隔离性是防止并发事务执行时产生的影响，如果没有隔离性，并发事务会带来的问题有：</p>
+<ol>
+<li>脏写：写了被其他事务覆盖，没生效</li>
+<li>脏读：读到未提交的中间结果（中间结果可以回滚，不认为是正确的数据）</li>
+<li>不可重复读：在一个事务内多次读结果不一致</li>
+<li>幻读：一次事务内读到新数据</li>
+</ol>
+<p>所以，需要解决以上问题</p>
+<h4 id="事务的隔离级别"><a href="#事务的隔离级别" class="headerlink" title="事务的隔离级别"></a>事务的隔离级别</h4><table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>脏读</th>
+<th>不可重复读</th>
+<th>幻读</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>读未提交（Read uncommitted）</td>
+<td>√</td>
+<td>√</td>
+<td>√</td>
+</tr>
+<tr>
+<td>读提交（read committed）</td>
+<td>×</td>
+<td>√</td>
+<td>√</td>
+</tr>
+<tr>
+<td>可重复读（repeatable read）</td>
+<td>×</td>
+<td>×</td>
+<td>√</td>
+</tr>
+<tr>
+<td>串行化（Serializable）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+</tbody></table>
+<p>MySQL 语句的默认事务隔离级别：rr 可重复读，通过<code>SELECT @@transaction_isolation;</code>查看</p>
+<p>修改隔离级别：<code>SET SESSION transaction_isolation = &#39;READ-UNCOMMITTED&#39;;</code></p>
+<p>在RR隔离级别中，select语句不会加锁，update, insert, delete 会根据条件加锁</p>
+<h4 id="不同隔离级别通过锁的实现思路"><a href="#不同隔离级别通过锁的实现思路" class="headerlink" title="不同隔离级别通过锁的实现思路"></a>不同隔离级别通过锁的实现思路</h4><table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>解决的问题</th>
+<th>实现思路</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RC</td>
+<td>脏读</td>
+<td>写时加X锁</td>
+</tr>
+<tr>
+<td>RR</td>
+<td>不可重复读</td>
+<td>读时加S锁</td>
+</tr>
+<tr>
+<td>Serializable</td>
+<td>幻读</td>
+<td>事务之间串行执行</td>
+</tr>
+</tbody></table>
+<h4 id="实验：不同隔离级别下的问题复现"><a href="#实验：不同隔离级别下的问题复现" class="headerlink" title="实验：不同隔离级别下的问题复现"></a>实验：不同隔离级别下的问题复现</h4><ol>
+<li><p>脏读</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-UNCOMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># clinet 2</span><br><span class="line">begin;</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># client 2</span><br><span class="line">rollback;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>不可重复读</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-COMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># clinet 2</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="多版本并发控制-MVVC"><a href="#多版本并发控制-MVVC" class="headerlink" title="多版本并发控制 MVVC"></a>多版本并发控制 MVVC</h3><p>在上小节中，通过S锁或X锁解决了一些并发事务的问题，但是这种方式存在以下问题：</p>
+<ol>
+<li>并发读写数据库时，读操作会阻塞写操作</li>
+<li>加锁带来的资源消耗</li>
+</ol>
+<p>如何解决上面的问题，也能保证事务的正确性呢</p>
+<h4 id="思路设想"><a href="#思路设想" class="headerlink" title="思路设想"></a>思路设想</h4><p>我的实现思路：为每个事务建立一个副本，不加锁的操作（select）从副本中读数据，涉及到加锁操作在原表中通过悲观锁操作</p>
+<p>难点：</p>
+<ol>
+<li>副本的形式是什么，是拷贝完整的表，还是一部分？</li>
+<li>创建副本时应该如何控制并发问题？</li>
+<li>副本太多可能导致磁盘不足怎么办？</li>
+</ol>
+<p>MySQL的实现思路：在有变更的操作时创建副本，事务找到它可见的最新副本，用于不加锁操作，涉及加锁操作，在原表中通过悲观锁操作</p>
+<p>难点：副本形式，如何找到可见的最新副本</p>
+<h4 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h4><p>MySQL的数据引擎对MVCC的实现原理</p>
+<p>依赖于记录中的三个隐藏字段（row_id，trx_id, roll_ptr），undo log，read view</p>
+<p>trx_id：该记录最新修改的事务号</p>
+<p>roll_ptr：上一个版本指针</p>
+<p>undo log：回滚日志</p>
+<p>read view：可见性</p>
+<p><img data-src="/../../images/mysql/mvcc.png" alt="image-20220714030233959"></p>
+<p>如上图，事务5来读取某一行数据，如那行数据的row_id&#x3D;24，记录中trx_id &gt; 5，对事务5不可见，通过rollback_ptr在undo log中找上个版本的记录，发现trx_id &gt; 5，再找上个版本的记录，发现trx_id &lt; 5，则该记录是事务5可见的最新版本，读数据</p>
+<h3 id="处理事务的注意事项"><a href="#处理事务的注意事项" class="headerlink" title="处理事务的注意事项"></a>处理事务的注意事项</h3><ol>
+<li>查询条件通过索引，避免无索引行升级为表锁</li>
+<li>加锁时，缩小锁的范围，避免间隙锁</li>
+<li>尽量减少锁定资源量和时间，将加锁操作放到最后执行</li>
+</ol>
+]]></content>
+      <tags>
+        <tag>MySQL</tag>
       </tags>
   </entry>
 </search>
