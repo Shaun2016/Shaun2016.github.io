@@ -1808,6 +1808,10 @@
 <p>read view：可见性</p>
 <p><img data-src="/../../images/mysql/mvcc.png" alt="image-20220714030233959"></p>
 <p>如上图，事务5来读取某一行数据，如那行数据的row_id&#x3D;24，记录中trx_id &gt; 5，对事务5不可见，通过rollback_ptr在undo log中找上个版本的记录，发现trx_id &gt; 5，再找上个版本的记录，发现trx_id &lt; 5，则该记录是事务5可见的最新版本，读数据</p>
+<h4 id="使用MVCC实现事务隔离级别，该怎么做"><a href="#使用MVCC实现事务隔离级别，该怎么做" class="headerlink" title="使用MVCC实现事务隔离级别，该怎么做"></a>使用MVCC实现事务隔离级别，该怎么做</h4><p>当前读：从数据表中读最新数据，不同语句根据隔离级别，使用悲观锁处理冲突，如<code>select ... in share mode</code>，<code>select ... for update</code></p>
+<p>快照读：使用MVCC，从表或undo log中读数据，不需要使用悲观锁，如<code>select ...</code></p>
+<p>RC和RR都可以通过快照读来实现，解决对应的问题</p>
+<p>MySQL 8.x 是通过MVCC实现的RC和RR，不是通过悲观锁</p>
 <h3 id="处理事务的注意事项"><a href="#处理事务的注意事项" class="headerlink" title="处理事务的注意事项"></a>处理事务的注意事项</h3><ol>
 <li>查询条件通过索引，避免无索引行升级为表锁</li>
 <li>加锁时，缩小锁的范围，避免间隙锁</li>
