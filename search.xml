@@ -1649,13 +1649,13 @@
 <h2 id="悲观锁"><a href="#悲观锁" class="headerlink" title="悲观锁"></a>悲观锁</h2><p>操作方对被操作对象加锁，等锁释放后其他操作方才能加锁（利己策略）</p>
 <h3 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h3><h4 id="S锁"><a href="#S锁" class="headerlink" title="S锁"></a>S锁</h4><p>Shared Lock，共享锁，读锁</p>
 <p>A加了S锁，其他人可以加S锁，不可加X锁</p>
-<p>如何加S锁（哪些操作会加S锁）：<code>select * from user where ... lock in shard mode;</code></p>
+<p>如何加S锁（哪些操作会加S锁）：<code>select * from user where ... lock in share mode;</code></p>
 <p>如何释放S锁：事务结束</p>
+<h4 id="U锁（SQLServer）"><a href="#U锁（SQLServer）" class="headerlink" title="U锁（SQLServer）"></a>U锁（SQLServer）</h4><p>更新锁，加了U锁，不能加U锁和X锁，可以加S锁（相当于加了S锁并预定了X锁）</p>
 <h4 id="X锁"><a href="#X锁" class="headerlink" title="X锁"></a>X锁</h4><p>Exclusive Lock，排他锁，写锁</p>
 <p>加了X锁，其他人不能加任何锁</p>
 <p>如何加X锁（哪些操作会加X锁）：<code>select * from user where ... for update;</code>，<code>insert</code>，<code>update</code>，<code>delete</code></p>
 <p>如何释放X锁：事务结束</p>
-<h4 id="U锁（SQLServer）"><a href="#U锁（SQLServer）" class="headerlink" title="U锁（SQLServer）"></a>U锁（SQLServer）</h4><p>更新锁，加了U锁，不能加U锁和X锁，可以加S锁（相当于加了S锁并预定了X锁）</p>
 <h3 id="加锁原则"><a href="#加锁原则" class="headerlink" title="加锁原则"></a>加锁原则</h3><p>最小知道原则</p>
 <h3 id="悲观锁的作用范围"><a href="#悲观锁的作用范围" class="headerlink" title="悲观锁的作用范围"></a>悲观锁的作用范围</h3><ol>
 <li>行锁</li>
@@ -1666,7 +1666,7 @@
 <h4 id="实验：锁升级"><a href="#实验：锁升级" class="headerlink" title="实验：锁升级"></a>实验：锁升级</h4><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># clinet 1</span><br><span class="line">begin; </span><br><span class="line">select * from actor where first_name = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">update actor set first_name = &#x27;2&#x27; where id = 1;</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
 
 <h3 id="死锁"><a href="#死锁" class="headerlink" title="死锁"></a>死锁</h3><h4 id="死锁的条件"><a href="#死锁的条件" class="headerlink" title="死锁的条件"></a>死锁的条件</h4><ol>
-<li>互斥：一把钥匙，只能一个人纳</li>
+<li>互斥：一把钥匙，只能一个人拿</li>
 <li>不剥夺：一个人拿了钥匙，别人不能抢</li>
 <li>请求和保持：有了一个资源，不放手，还要请求其他资源</li>
 <li>循环等待：与另一个人的请求资源形成环</li>
@@ -1692,7 +1692,7 @@
 <li>使用U锁，允许其他人加S锁，但不能加U和X</li>
 <li>直接加X锁</li>
 </ol>
-<h5 id="实验1：S锁与X锁的阻塞情况"><a href="#实验1：S锁与X锁的阻塞情况" class="headerlink" title="实验1：S锁与X锁的阻塞情况"></a>实验1：S锁与X锁的阻塞情况</h5><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">## S 锁不能加X锁的情况</span><br><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">update actor set first_name = &#x27;Jan&#x27; where actor_id = 1;</span><br><span class="line"># 或者</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2 pending...</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br><span class="line"># client 2 running or wait timeout exceeded</span><br><span class="line">## X锁不能加S锁的情况</span><br><span class="line"># 同理</span><br></pre></td></tr></table></figure>
+<h5 id="实验1：S锁与X锁的阻塞情况"><a href="#实验1：S锁与X锁的阻塞情况" class="headerlink" title="实验1：S锁与X锁的阻塞情况"></a>实验1：S锁与X锁的阻塞情况</h5><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">## S 锁不能加X锁的情况</span><br><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2 pending...</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br><span class="line"># client 2 running or wait timeout exceeded</span><br><span class="line">## X锁不能加S锁的情况</span><br><span class="line"># 同理</span><br></pre></td></tr></table></figure>
 
 <h5 id="实验2：数据库层面制造死锁并定位死锁"><a href="#实验2：数据库层面制造死锁并定位死锁" class="headerlink" title="实验2：数据库层面制造死锁并定位死锁"></a>实验2：数据库层面制造死锁并定位死锁</h5><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line">SHOW ENGINE INNODB STATUS;</span><br></pre></td></tr></table></figure>
 
@@ -1753,7 +1753,6 @@
 </tbody></table>
 <p>MySQL 语句的默认事务隔离级别：rr 可重复读，通过<code>SELECT @@transaction_isolation;</code>查看</p>
 <p>修改隔离级别：<code>SET SESSION transaction_isolation = &#39;READ-UNCOMMITTED&#39;;</code></p>
-<p>在RR隔离级别中，select语句不会加锁，update, insert, delete 会根据条件加锁</p>
 <h4 id="不同隔离级别通过锁的实现思路"><a href="#不同隔离级别通过锁的实现思路" class="headerlink" title="不同隔离级别通过锁的实现思路"></a>不同隔离级别通过锁的实现思路</h4><table>
 <thead>
 <tr>
@@ -1780,12 +1779,13 @@
 </tbody></table>
 <h4 id="实验：不同隔离级别下的问题复现"><a href="#实验：不同隔离级别下的问题复现" class="headerlink" title="实验：不同隔离级别下的问题复现"></a>实验：不同隔离级别下的问题复现</h4><ol>
 <li><p>脏读</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-UNCOMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># clinet 2</span><br><span class="line">begin;</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># client 2</span><br><span class="line">rollback;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># clinet 2</span><br><span class="line">begin;</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-UNCOMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># client 2</span><br><span class="line">rollback;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
 </li>
 <li><p>不可重复读</p>
 <figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-COMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># clinet 2</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure></li>
 </ol>
-<h3 id="多版本并发控制-MVVC"><a href="#多版本并发控制-MVVC" class="headerlink" title="多版本并发控制 MVVC"></a>多版本并发控制 MVVC</h3><p>在上小节中，通过S锁或X锁解决了一些并发事务的问题，但是这种方式存在以下问题：</p>
+<h3 id="多版本并发控制-MVCC"><a href="#多版本并发控制-MVCC" class="headerlink" title="多版本并发控制 MVCC"></a>多版本并发控制 MVCC</h3><p>Multi-Version Concurrency Control</p>
+<p>在上小节中，通过S锁或X锁解决了一些并发事务的问题，但是这种方式存在以下问题：</p>
 <ol>
 <li>并发读写数据库时，读操作会阻塞写操作</li>
 <li>加锁带来的资源消耗</li>
@@ -1801,14 +1801,14 @@
 <p>MySQL的实现思路：在有变更的操作时创建副本，事务找到它可见的最新副本，用于不加锁操作，涉及加锁操作，在原表中通过悲观锁操作</p>
 <p>难点：副本形式，如何找到可见的最新副本</p>
 <h4 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h4><p>MySQL的数据引擎对MVCC的实现原理</p>
-<p>依赖于记录中的三个隐藏字段（row_id，trx_id, roll_ptr），undo log，read view</p>
+<p>依赖于记录中的三个隐藏字段（row_id，trx_id, rollback_ptr），undo log，read view</p>
 <p>trx_id：该记录最新修改的事务号</p>
-<p>roll_ptr：上一个版本指针</p>
+<p>rollback_ptr：上一个版本指针</p>
 <p>undo log：回滚日志</p>
 <p>read view：可见性</p>
 <p><img data-src="/../../images/mysql/mvcc.png" alt="image-20220714030233959"></p>
 <p>如上图，事务5来读取某一行数据，如那行数据的row_id&#x3D;24，记录中trx_id &gt; 5，对事务5不可见，通过rollback_ptr在undo log中找上个版本的记录，发现trx_id &gt; 5，再找上个版本的记录，发现trx_id &lt; 5，则该记录是事务5可见的最新版本，读数据</p>
-<h4 id="使用MVCC实现事务隔离级别，该怎么做"><a href="#使用MVCC实现事务隔离级别，该怎么做" class="headerlink" title="使用MVCC实现事务隔离级别，该怎么做"></a>使用MVCC实现事务隔离级别，该怎么做</h4><p>当前读：从数据表中读最新数据，不同语句根据隔离级别，使用悲观锁处理冲突，如<code>select ... in share mode</code>，<code>select ... for update</code></p>
+<h4 id="使用MVCC实现事务隔离级别，该怎么做"><a href="#使用MVCC实现事务隔离级别，该怎么做" class="headerlink" title="使用MVCC实现事务隔离级别，该怎么做"></a>使用MVCC实现事务隔离级别，该怎么做</h4><p>当前读：从数据表中，不同语句根据隔离级别，使用悲观锁处理冲突，如<code>select ... in share mode</code>，<code>select ... for update</code></p>
 <p>快照读：使用MVCC，从表或undo log中读数据，不需要使用悲观锁，如<code>select ...</code></p>
 <p>RC和RR都可以通过快照读来实现，解决对应的问题</p>
 <p>MySQL 8.x 是通过MVCC实现的RC和RR，不是通过悲观锁</p>
