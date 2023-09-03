@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文简述 Java 注解原理 你可以收获：  Java 文件的编译过程 插入式注解的原理 什么是抽象语法树 如何自己实现一个 lombok 运行时注解的原理">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java 注解原理">
+<meta property="og:url" content="http://shaun2016.github.io/2023/04/02/java/annotation/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文简述 Java 注解原理 你可以收获：  Java 文件的编译过程 插入式注解的原理 什么是抽象语法树 如何自己实现一个 lombok 运行时注解的原理">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230326135858492.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/%E7%BC%96%E8%AF%91%E9%98%B6%E6%AE%B5.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230326204009345.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230326204126350.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230329001730499.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230328142409017.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230330173700415.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20230401003903758.png">
+<meta property="article:published_time" content="2023-04-02T07:41:46.000Z">
+<meta property="article:modified_time" content="2023-04-02T07:43:04.831Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="java">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/java/image-20230326135858492.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2023/04/02/java/annotation/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Java 注解原理 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/04/02/java/annotation/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Java 注解原理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-04-02 15:41:46 / 修改时间：15:43:04" itemprop="dateCreated datePublished" datetime="2023-04-02T15:41:46+08:00">2023-04-02</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文简述 Java 注解原理</p>
+<p>你可以收获：</p>
+<ol type="1">
+<li>Java 文件的编译过程</li>
+<li>插入式注解的原理</li>
+<li>什么是抽象语法树</li>
+<li>如何自己实现一个 lombok</li>
+<li>运行时注解的原理</li>
+</ol>
+</blockquote>
+<span id="more"></span>
+<h2 id="注解的分类">注解的分类</h2>
+<p>根据注解的生命周期，可以分为三类：</p>
+<ul>
+<li>SOURCE：编译器可见，不会写入 class 文件</li>
+<li>CLASS：会写入 class 文件，在类加载阶段丢弃</li>
+<li>RUNTIME：会加载到 JVM</li>
+</ul>
+<p>根据注解的操作形式，可以分为两类：</p>
+<ul>
+<li>插入式注解：插入式注解（也叫编译时注解）内容只存在源文件，在编译期间被丢弃，不能通过JVM获取注解信息，Retention=SOURCE
+或 CLASS</li>
+<li>运行时注解：编译时被写入字节码文件中，可以通过 JVM
+运行时获取注解信息（Retention=RUNTIME）</li>
+</ul>
+<h2 id="注解的作用与好处">注解的作用与好处</h2>
+<p>作用：</p>
+<ul>
+<li>生成文档：如 <span class="citation" data-cites="authr">@authr</span>
+<span class="citation" data-cites="version">@version</span></li>
+<li>标注说明：如 <span class="citation" data-cites="Override">@Override</span> <span class="citation" data-cites="Deprecated">@Deprecated</span></li>
+<li>实现能力：如 lombok、AspectJ 框架 以注解方式提供功能</li>
+</ul>
+<p>好处：</p>
+<ul>
+<li>减少手动实现冗余代码，使代码简洁，如 lombok、BufferKnife 等</li>
+<li>对业务代码低侵入，如 BTrace 追踪工具</li>
+</ul>
+<h2 id="编译过程">编译过程</h2>
+<blockquote>
+<p>在介绍插入式注解，需要先了解 java 的编译过程</p>
+</blockquote>
+<p>编译：将便于人编写、阅读、维护的高级计算机语言写的源代码程序，翻译为计算机能解读、运行的低阶机器语言的程序的过程。负责这一过程的处理的工具叫做<strong>编译器</strong></p>
+<p>简单理解，<strong>编译</strong> = 高级语言源代码 → 分析 + 翻译 + 优化
+→ 低级语言机器码</p>
+<p>源码编译流程如图所示：</p>
+<figure>
+<img src="/images/java/image-20230326135858492.png" alt="image-20230326135858492">
+<figcaption aria-hidden="true">image-20230326135858492</figcaption>
+</figure>
+<p>其中【中间代码】指的就是字节码（.class文件），字节码无法被机器识别，还需要
+JVM 再将字节码转为机器码</p>
+<p>编译阶段的编译器和对应任务如下：</p>
+<table>
+<thead>
+<tr class="header">
+<th>编译器</th>
+<th>任务</th>
+<th>代表</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>前端编译器</td>
+<td>.java → .class</td>
+<td>javac</td>
+</tr>
+<tr class="even">
+<td>后端编译器</td>
+<td>.class → 机器码</td>
+<td>HotSpot 的 C1、C2 编译器</td>
+</tr>
+</tbody>
+</table>
+<p>Ref：https://rensifei.site/2017/03/javac/</p>
+<h3 id="前端编译">前端编译</h3>
+<p>大致可以分为3个过程：</p>
+<ol type="1">
+<li>解析与填充符号表（Parse and Enter）</li>
+<li>注解处理（Annotation Processing）</li>
+<li>语义分析与字节码生成（Analyse and Generate）</li>
+</ol>
+<figure>
+<img src="/images/java/编译阶段.drawio.png" alt="编译阶段.drawio">
+<figcaption aria-hidden="true">编译阶段.drawio</figcaption>
+</figure>
+<h4 id="parse-and-enter">Parse and Enter</h4>
+<p>该阶段将源码解析构建抽象语法树（Abstract Syntax
+Tree，AST）。从功能上分为词法分析和语法分析</p>
+<table>
+<colgroup>
+<col style="width: 6%">
+<col style="width: 10%">
+<col style="width: 14%">
+<col style="width: 30%">
+<col style="width: 38%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>功能</th>
+<th>输入</th>
+<th>输出</th>
+<th>处理范围</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>词法分析</td>
+<td>源代码字符流</td>
+<td>标记（Token）集合</td>
+<td>关键字、变量名、字面量、运算符</td>
+<td>将Java源代码按照Java关键字、自定义关键字、符号等按顺序分解为了可识别的Token流</td>
+</tr>
+<tr class="even">
+<td>语法分析</td>
+<td>标记（Token）集合</td>
+<td>抽象语法树（AST）</td>
+<td>包、类型、运算符、修饰符、接口、返回值、代码注释</td>
+<td>将Token流组装成更结构化的<strong>语法树</strong>，描述程序代码语法结构，检查是否符合Java语言规范</td>
+</tr>
+<tr class="odd">
+<td>填充符号表</td>
+<td></td>
+<td>符号表（Symbol Table）</td>
+<td></td>
+<td>由 com.sun.tools.javac.comp.Enter
+按照递归向下的顺序解析语法树，将所有类中出现的符号输入到自身的符号表，并将这些符号都存储到一个To
+do List中。将这个To do List中的所有类都解析到各自的符号列表中（@-<span class="citation" data-cites="不懂">@不懂</span>）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="annotation-processing">Annotation Processing</h4>
+<p>插入式注解处理器的处理过程，通过操作语法树，实现功能，具体的在后面讨论</p>
+<h4 id="analyse-and-generate">Analyse and Generate</h4>
+<table>
+<colgroup>
+<col style="width: 7%">
+<col style="width: 27%">
+<col style="width: 21%">
+<col style="width: 43%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>功能</th>
+<th>输入</th>
+<th>输出</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>语义分析</td>
+<td>抽象语法树</td>
+<td>标注检查和数据流分析后的语法树</td>
+<td>进行标注检查（变量使用前是否已被声明、变量与赋值之间的数据类型是否能够匹配），数据及控制流分析（局部变量在使用前是否有赋值、方法的每条路径是否都有返回值、是否所有的受查异常都被正确处理）</td>
+</tr>
+<tr class="even">
+<td>解语法糖</td>
+<td>泛型、变长参数、自动装箱/拆箱、断言等</td>
+<td>还原回简单的基础语法结构</td>
+<td>语法糖对语言的功能没有任何影响，只是更方便使用，让程序更简洁和可读性。JVM运行时不支持这些语法糖语法，需要在编译阶段还原回简单的基础语法结构，这个过程称为解语法糖</td>
+</tr>
+<tr class="odd">
+<td>字节码生成</td>
+<td>抽象语法树、符号表</td>
+<td>字节码文件</td>
+<td>前面各个步骤所生成的信息（语法树、符号表）转化成字节码写到磁盘中</td>
+</tr>
+</tbody>
+</table>
+<p>Ref: <a target="_blank" rel="noopener" href="https://www.cnblogs.com/qingshanli/p/9375040.html">浅析java中的语法糖</a></p>
+<h3 id="后端编译">后端编译</h3>
+<p>目前 JVM 采用解释器和 JIT（Just-In-Time Compiler）混和模式</p>
+<p>没有 JIT 的情况下，javac 将源码编译为字节码，JVM
+解释器逐条读入字节码，逐条解释，翻译成对应的机器指令。经过解释，执行速度必然比可执行的二进制码程序执行慢；为了提高执行速度，引入了
+JIT。JIT 会把热点代码（Hot Spot
+Code）翻译过的机器码保存起来，已备下次使用</p>
+<blockquote>
+<p>所以 Java 是解释型还是编译型语言呢？</p>
+<p>答：前端阶段属于编译，后端阶段属于解释 + 编译的混合模式</p>
+</blockquote>
+<h2 id="插入式注解">插入式注解</h2>
+<blockquote>
+<p>插入式注解（也叫编译时注解）内容只存在源文件，在编译期间被丢弃，不能通过JVM获取注解信息，Retention=SOURCE
+或 CLASS</p>
+</blockquote>
+<h3 id="原理">原理</h3>
+<p>由上面介绍的Java源码编译过程可知，插入式注解，是处于前端编译的Annotation
+Processing步骤，通过操作抽象语法树（AST）实现对应的方法</p>
+<h3 id="认识抽象语法树">认识抽象语法树</h3>
+<p>使用 JDT AST 插件，对下面的代码生成语法树</p>
+<figure>
+<img src="/images/java/image-20230326204009345.png" alt="image-20230326204009345">
+<figcaption aria-hidden="true">image-20230326204009345</figcaption>
+</figure>
+<p>新增了 getName 方法，重新生成语法树，查看区别</p>
+<figure>
+<img src="/images/java/image-20230326204126350.png" alt="image-20230326204126350">
+<figcaption aria-hidden="true">image-20230326204126350</figcaption>
+</figure>
+<p>所以操作语法树，创建 MethodDeclaration
+节点，就相当于新增了一个方法</p>
+<p>下面介绍如何操作语法树</p>
+<h3 id="操作抽象语法树">操作抽象语法树</h3>
+<h4 id="jctree">JCTree</h4>
+<p>JCTree 是语法树元素的基类，JCTree 的一个子类就是 java
+语法中的一个节点，类、方法、字段等这些都被封装成了一个JCTree子类</p>
+<p>JCTree
+包含一个重要的字段<code>pos</code>，该字段用于指明当前节点在语法树中的位置，不能直接用new关键字来创建语法树节点，因为不指明
+pos 的节点是没有意义的</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">		<span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">process</span><span class="params">(Set&lt;? extends TypeElement&gt; annotations, RoundEnvironment roundEnv)</span> &#123;</span><br><span class="line">        Set&lt;? <span class="keyword">extends</span> <span class="title class_">Element</span>&gt; elementSet = roundEnv.getElementsAnnotatedWith(Getter.class);</span><br><span class="line"></span><br><span class="line">        elementSet.forEach(element -&gt; &#123;</span><br><span class="line">            <span class="comment">//获取元素的JCTree对象</span></span><br><span class="line">            <span class="type">JCTree</span> <span class="variable">jcTree</span> <span class="operator">=</span> trees.getTree(element);</span><br><span class="line">            jcTree.accept(<span class="keyword">new</span> <span class="title class_">TreeTranslator</span>() &#123;</span><br><span class="line">                <span class="meta">@Override</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">visitClassDef</span><span class="params">(JCTree.JCClassDecl jcClassDecl)</span> &#123;</span><br><span class="line">                    <span class="keyword">for</span> (JCTree tree : jcClassDecl.defs) &#123;</span><br><span class="line">                        <span class="keyword">if</span> (tree.getKind().equals(Tree.Kind.VARIABLE)) &#123;</span><br><span class="line">                            JCTree.<span class="type">JCVariableDecl</span> <span class="variable">variable</span> <span class="operator">=</span> (JCTree.JCVariableDecl) tree;</span><br><span class="line">                            System.out.println(<span class="string">&quot;variable &quot;</span> + variable.getName() + <span class="string">&quot;\t pos &quot;</span> + variable.getPreferredPosition());</span><br><span class="line">                        &#125;</span><br><span class="line">                        <span class="keyword">if</span> (tree.getKind().equals(Tree.Kind.METHOD)) &#123;</span><br><span class="line">                            JCTree.<span class="type">JCMethodDecl</span> <span class="variable">method</span> <span class="operator">=</span> (JCTree.JCMethodDecl) tree;</span><br><span class="line">                            System.out.println(<span class="string">&quot;method &quot;</span> + method.getName() + <span class="string">&quot;\t pos &quot;</span> + method.getPreferredPosition());</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line"></span><br><span class="line">                    <span class="built_in">super</span>.visitClassDef(jcClassDecl);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">        &#125;);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line"><span class="comment">// 打印被 @Getter 修饰的 Dog.class 类的属性和方法：</span></span><br><span class="line">variable name	 pos <span class="number">74</span></span><br><span class="line">variable age	 pos <span class="number">101</span></span><br><span class="line">variable color	 pos <span class="number">126</span></span><br><span class="line">method &lt;init&gt;	 pos <span class="number">145</span></span><br><span class="line">method say	 pos <span class="number">213</span></span><br><span class="line">method jump	 pos <span class="number">284</span></span><br><span class="line">method toString	 pos <span class="number">333</span></span><br></pre></td></tr></table></figure>
+<p>上面的例子可以看到，通过遍历 JCTree
+可以得到类的属性、方法节点，JCTree 的子类的含义如下：</p>
+<figure>
+<img src="/images/java/image-20230329001730499.png" alt="image-20230329001730499">
+<figcaption aria-hidden="true">image-20230329001730499</figcaption>
+</figure>
+<p>JCTree 利用访问者模式，来操作 JCTree
+节点，目的是将数据与数据的处理进行解耦</p>
+<blockquote>
+<p>简单说下访问者模式：数据与数据的处理进行解耦</p>
+<p>现有数据是鸡🐔，对鸡的处理有很多：老张想养做宠物，小春想用来下蛋，小红想做宫保鸡丁，小王想咖喱鸡块，坤坤想...（很多很多人，对鸡的处理都不一样），这样在实现时，需要写很多的
+if 判断。用访问者模式，可以让鸡提供一个 accept(Vistor)
+方法，不同的人是不同的 Visitor，具体的处理是 Visior.visit(鸡)
+方法，当老张来处理，则 鸡.accept(老张)，accept 里会调用
+老张.visit(this)，然后执行老张的处理逻辑</p>
+<p>具体见：<a target="_blank" rel="noopener" href="https://www.jianshu.com/p/1f1049d0a0f4">访问者模式</a></p>
+</blockquote>
+<p>Ref：<a target="_blank" rel="noopener" href="https://blog.csdn.net/a__int__/article/details/127485001">java
+AbstractProcessor 编译时注解（API）</a></p>
+<h4 id="treemaker">TreeMaker</h4>
+<p>TreeMaker 用于创建一系列的语法树节点，上面说了创建 JCTree
+不能直接使用 new 关键字来创建，所以 Java 为我们提供了一个工具，就是
+TreeMaker，必须使用上下文相关的TreeMaker对象来创建语法树节点，它在创建时为我们创建的
+JCTree 对象设置 pos 字段</p>
+<p>TreeMaker 常用方法见下面链接</p>
+<p>Ref：<a target="_blank" rel="noopener" href="https://www.imooc.com/article/321973">Java
+中的屠龙之术：如何修改语法树？</a></p>
+<h3 id="注解处理器">注解处理器</h3>
+<p>注解处理器（Annotation Processing
+Tool，简称APT），是JDK提供的工具，用于在编译阶段未生成class之前对源码中的注解进行扫描和处理</p>
+<p>处理方式对注解修饰的类的 AST 进行修改，生成新的 AST</p>
+<h3 id="实例演示">实例演示</h3>
+<h4 id="demo1.-javac-编译版">Demo1. Javac 编译版</h4>
+<blockquote>
+<p>下面通过开发注解处理器，给一个类自动生成 Getter 方法，实现类似 lombok
+的效果</p>
+</blockquote>
+<p>首先声明一个注解类，生命周期在 SOURCE 或 CLASS 都可以</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.SOURCE)</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> Getter &#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>编写Getter注解处理器</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> com.sun.source.tree.Tree;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.api.JavacTrees;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.code.Flags;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.processing.JavacProcessingEnvironment;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.tree.JCTree;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.tree.TreeMaker;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.tree.TreeTranslator;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.util.Context;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.util.List;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.util.ListBuffer;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.util.Name;</span><br><span class="line"><span class="keyword">import</span> com.sun.tools.javac.util.Names;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.AbstractProcessor;</span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.Messager;</span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.ProcessingEnvironment;</span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.RoundEnvironment;</span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.SupportedAnnotationTypes;</span><br><span class="line"><span class="keyword">import</span> javax.annotation.processing.SupportedSourceVersion;</span><br><span class="line"><span class="keyword">import</span> javax.lang.model.SourceVersion;</span><br><span class="line"><span class="keyword">import</span> javax.lang.model.element.Element;</span><br><span class="line"><span class="keyword">import</span> javax.lang.model.element.TypeElement;</span><br><span class="line"><span class="keyword">import</span> javax.tools.Diagnostic;</span><br><span class="line"><span class="keyword">import</span> java.util.Set;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Getter注解处理器</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@SupportedAnnotationTypes(&quot;org.example.anno.Getter&quot;)</span></span><br><span class="line"><span class="meta">@SupportedSourceVersion(SourceVersion.RELEASE_8)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">GetterProcessor</span> <span class="keyword">extends</span> <span class="title class_">AbstractProcessor</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Messager messager;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 待处理的抽象语法树</span></span><br><span class="line">    <span class="keyword">private</span> JavacTrees trees;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 封装了操作AST的方法</span></span><br><span class="line">    <span class="keyword">private</span> TreeMaker treeMaker;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 提供了创建标识符的方法</span></span><br><span class="line">    <span class="keyword">private</span> Names names;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title function_">init</span><span class="params">(ProcessingEnvironment processingEnv)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>.init(processingEnv);</span><br><span class="line">        <span class="built_in">this</span>.messager = processingEnv.getMessager();</span><br><span class="line">        <span class="built_in">this</span>.trees = JavacTrees.instance(processingEnv);</span><br><span class="line">        <span class="type">Context</span> <span class="variable">context</span> <span class="operator">=</span> ((JavacProcessingEnvironment)processingEnv).getContext();</span><br><span class="line">        <span class="built_in">this</span>.treeMaker = TreeMaker.instance(context);</span><br><span class="line">        <span class="built_in">this</span>.names = Names.instance(context);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 操作 AST</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">process</span><span class="params">(Set&lt;? extends TypeElement&gt; annotations, RoundEnvironment roundEnv)</span> &#123;</span><br><span class="line">        Set&lt;? <span class="keyword">extends</span> <span class="title class_">Element</span>&gt; set = roundEnv.getElementsAnnotatedWith(Getter.class);</span><br><span class="line">        set.forEach(element -&gt; &#123;</span><br><span class="line">            <span class="type">JCTree</span> <span class="variable">jcTree</span> <span class="operator">=</span> trees.getTree(element);</span><br><span class="line">            jcTree.accept(<span class="keyword">new</span> <span class="title class_">TreeTranslator</span>() &#123;</span><br><span class="line">                <span class="meta">@Override</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">visitClassDef</span><span class="params">(JCTree.JCClassDecl jcClassDecl)</span> &#123;</span><br><span class="line">                    List&lt;JCTree.JCVariableDecl&gt; jcVariableDeclList = List.nil();</span><br><span class="line">                    <span class="keyword">for</span> (JCTree tree : jcClassDecl.defs) &#123;</span><br><span class="line">                        <span class="keyword">if</span> (tree.getKind().equals(Tree.Kind.VARIABLE)) &#123;</span><br><span class="line">                            JCTree.<span class="type">JCVariableDecl</span> <span class="variable">jcVariableDecl</span> <span class="operator">=</span> (JCTree.JCVariableDecl) tree;</span><br><span class="line">                            jcVariableDeclList = jcVariableDeclList.append(jcVariableDecl);</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                    jcVariableDeclList.forEach(jcVariableDecl -&gt; &#123;</span><br><span class="line">                        messager.printMessage(Diagnostic.Kind.NOTE, jcVariableDecl.getName() + <span class="string">&quot; has been processed&quot;</span>);</span><br><span class="line">                        jcClassDecl.defs = jcClassDecl.defs.prepend(makeGetterMethodDecl(jcVariableDecl));</span><br><span class="line">                    &#125;);</span><br><span class="line">                    <span class="built_in">super</span>.visitClassDef(jcClassDecl);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">        &#125;);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> JCTree.JCMethodDecl <span class="title function_">makeGetterMethodDecl</span><span class="params">(JCTree.JCVariableDecl jcVariableDecl)</span> &#123;</span><br><span class="line">        ListBuffer&lt;JCTree.JCStatement&gt; statements = <span class="keyword">new</span> <span class="title class_">ListBuffer</span>&lt;&gt;();</span><br><span class="line">        statements.append(treeMaker.Return(treeMaker.Select(treeMaker.Ident(names.fromString(<span class="string">&quot;this&quot;</span>)), jcVariableDecl.getName())));</span><br><span class="line">        JCTree.<span class="type">JCBlock</span> <span class="variable">body</span> <span class="operator">=</span> treeMaker.Block(<span class="number">0</span>, statements.toList());</span><br><span class="line">        <span class="keyword">return</span> treeMaker.MethodDef(treeMaker.Modifiers(Flags.PUBLIC), getNewMethodName(jcVariableDecl.getName()), jcVariableDecl.vartype, List.nil(), List.nil(), List.nil(), body, <span class="literal">null</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Name <span class="title function_">getNewMethodName</span><span class="params">(Name name)</span> &#123;</span><br><span class="line">        <span class="type">String</span> <span class="variable">s</span> <span class="operator">=</span> name.toString();</span><br><span class="line">        <span class="keyword">return</span> names.fromString(<span class="string">&quot;get&quot;</span> + s.substring(<span class="number">0</span>, <span class="number">1</span>).toUpperCase() + s.substring(<span class="number">1</span>, name.length()));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Ref：<a target="_blank" rel="noopener" href="https://blog.mythsman.com/post/5d2c11c767f841464434a3bf/">Lombok原理分析与功能实现</a></p>
+<p>要生成 Getter 方法的类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Getter</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Dog</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String name;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>编译 Dog.java，指定注解处理器</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Run</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="type">String</span> <span class="variable">commonPath</span> <span class="operator">=</span> <span class="string">&quot;/Users/zhangjiaming/workspace/gitlab/java-agent-demo/anno-demo&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> &#123;</span><br><span class="line">        <span class="type">String</span> <span class="variable">str</span> <span class="operator">=</span> commonPath + <span class="string">&quot;/src/main/java/org/example/anno/Dog.java&quot;</span>;</span><br><span class="line">        com.sun.tools.javac.main.<span class="type">Main</span> <span class="variable">compiler</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">com</span>.sun.tools.javac.main.Main(<span class="string">&quot;javac&quot;</span>);</span><br><span class="line">        args = <span class="keyword">new</span> <span class="title class_">String</span>[] &#123;</span><br><span class="line">          <span class="string">&quot;-processor&quot;</span>, <span class="string">&quot;org.example.anno.GetterProcessor&quot;</span>,</span><br><span class="line">          <span class="string">&quot;-processorpath&quot;</span>, commonPath + <span class="string">&quot;/src/main/java&quot;</span>,</span><br><span class="line">          <span class="string">&quot;-d&quot;</span>, commonPath + <span class="string">&quot;/classes&quot;</span>,</span><br><span class="line">          str</span><br><span class="line">        &#125;;</span><br><span class="line">        <span class="type">int</span> <span class="variable">rc</span> <span class="operator">=</span> compiler.compile(args).exitCode;</span><br><span class="line">        System.out.println(<span class="string">&quot;result code : &quot;</span> + rc);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>运行后，查看Dog.class的反编译结果，发现已生成 getName 方法</p>
+<figure>
+<img src="/images/java/image-20230328142409017.png" alt="image-20230328142409017">
+<figcaption aria-hidden="true">image-20230328142409017</figcaption>
+</figure>
+<h4 id="demo.2-mvn打包版">Demo.2 mvn打包版</h4>
+<h5 id="注解工程">注解工程</h5>
+<blockquote>
+<p>上面的例子需要在编译过程中指定注解处理器；下面尝试将注解处理器打包，由其他工程以
+jar 包形式引入，真正达到 lombok 的效果</p>
+</blockquote>
+<p>项目结构如下</p>
+<figure>
+<img src="/images/java/image-20230330173700415.png" alt="image-20230330173700415">
+<figcaption aria-hidden="true">image-20230330173700415</figcaption>
+</figure>
+<p>在 resources/META-INF/services下新建文件
+<code>javax.annotation.processing.Processor</code>，内容如下：</p>
+<figure class="highlight yml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">org.example.anno.GetterProcessor</span></span><br><span class="line"><span class="string">org.example.anno.SetterProcessor</span></span><br></pre></td></tr></table></figure>
+<p>pom.xml中加入构建方式：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">build</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">plugins</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">plugin</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.maven.plugins<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>maven-compiler-plugin<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">version</span>&gt;</span>3.5.1<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">configuration</span>&gt;</span></span><br><span class="line">                  <span class="tag">&lt;<span class="name">compilerArgument</span>&gt;</span></span><br><span class="line">                      -proc:none</span><br><span class="line">                  <span class="tag">&lt;/<span class="name">compilerArgument</span>&gt;</span></span><br><span class="line">                  <span class="tag">&lt;<span class="name">source</span>&gt;</span>1.8<span class="tag">&lt;/<span class="name">source</span>&gt;</span></span><br><span class="line">                  <span class="tag">&lt;<span class="name">target</span>&gt;</span>1.8<span class="tag">&lt;/<span class="name">target</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;/<span class="name">configuration</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;/<span class="name">plugin</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;/<span class="name">plugins</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">build</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<p>构建，生成 jar 文件</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mvn clean package</span><br></pre></td></tr></table></figure>
+<h5 id="测试工程">测试工程</h5>
+<p>将注解工程 jar 包引入</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.example<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>anno-jar<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">scope</span>&gt;</span>system<span class="tag">&lt;/<span class="name">scope</span>&gt;</span></span><br><span class="line">          <span class="tag">&lt;<span class="name">systemPath</span>&gt;</span>/Users/zhangjiaming/workspace/gitlab/java-agent-demo/anno-jar/target/anno-jar-1.0-SNAPSHOT.jar<span class="tag">&lt;/<span class="name">systemPath</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<p>编写测试类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> org.example.model;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.example.anno.Getter;</span><br><span class="line"><span class="keyword">import</span> org.example.anno.Setter;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Getter</span></span><br><span class="line"><span class="meta">@Setter</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Dog</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String name;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String color;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Integer weight;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Boolean big;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">Dog</span><span class="params">(String name, String color, Integer weight)</span> &#123;</span><br><span class="line">        <span class="built_in">this</span>.name = name;</span><br><span class="line">        <span class="built_in">this</span>.color = color;</span><br><span class="line">        <span class="built_in">this</span>.weight = weight;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">Dog</span><span class="params">()</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> &#123;</span><br><span class="line">        <span class="type">Dog</span> <span class="variable">dog</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Dog</span>(<span class="string">&quot;zhangjiaming&quot;</span>, <span class="string">&quot;white&quot;</span>, <span class="number">3</span>);</span><br><span class="line"> 				System.out.println(dog.getName());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>编译并打包：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mvn clean <span class="keyword">package</span></span><br></pre></td></tr></table></figure>
+<p>（运行指令报错，待研究）</p>
+<p>运行：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">javac org.example.model.Dog</span><br><span class="line"><span class="comment">// output: zhangjiaming</span></span><br></pre></td></tr></table></figure>
+<h4 id="遇到问题">遇到问题</h4>
+<p>在测试工程目录下执行 <code>mvn clean package</code> 报错如下</p>
+<figure>
+<img src="/images/java/image-20230401003903758.png" alt="image-20230401003903758">
+<figcaption aria-hidden="true">image-20230401003903758</figcaption>
+</figure>
+<p>不过用 idea 的 maven package 工具打包成功，具体原因待研究</p>
+<p>完整项目见 github
+地址：https://github.com/Shaun2016/anno-practice</p>
+<h2 id="运行时注解">运行时注解</h2>
+<blockquote>
+<p>运行时注解，在编译时被写入字节码文件中，可以通过 JVM
+运行时获取注解信息（Retention=RUNTIME）</p>
+</blockquote>
+<h3 id="原理-1">原理</h3>
+<blockquote>
+<p>使用下面的例子方便说明</p>
+<p>注解：TestAnnotation</p>
+<p>注解实用类：Dog</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(ElementType.TYPE)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@interface</span> TestAnnotation &#123;</span><br><span class="line">    <span class="type">int</span> <span class="title function_">level</span><span class="params">()</span>;</span><br><span class="line">    String <span class="title function_">desc</span><span class="params">()</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@TestAnnotation(</span></span><br><span class="line"><span class="meta">    level = 123,</span></span><br><span class="line"><span class="meta">    desc = &quot;This is a test annotation&quot;</span></span><br><span class="line"><span class="meta">)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Dog</span> &#123;</span><br><span class="line">  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ol type="1">
+<li>编译 Dog.java，注解会被写入到被 Dog 类的字节码文件中</li>
+<li>类加载器将被 Dog 类加载到 JVM 中，并通过 RuntimeVisibleAnnotations
+等属性保存注解 key-value 关系，通过 Map 来保存</li>
+<li>通过 JDK 动态代理，将注解类（本质是一个接口）生成代理对象</li>
+<li>调用代理对象的对应的方法（level 和 desc 方法），会调用注解处理器的
+invoke 方法</li>
+<li>注解处理器从 Dog Class 对象的 RuntimeVisibleAnnotations 等属性的 Map
+中找到对应的返回值</li>
+</ol>
+<h4 id="实例">实例</h4>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">test1</span><span class="params">()</span> &#123;</span><br><span class="line">    Class&lt;Dog&gt; clazz = Dog.class;</span><br><span class="line">    <span class="type">TestAnnotation</span> <span class="variable">myAnnotation</span> <span class="operator">=</span> clazz.getAnnotation(TestAnnotation.class);</span><br><span class="line">    System.out.println(myAnnotation.desc());</span><br><span class="line">    System.out.println(myAnnotation.level());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>下文将针对运行时注解，介绍AOP相关的内容</p>
+<h2 id="总结">总结</h2>
+<p>本文介绍了注解的分类：插入式注解和运行时注解，主要介绍了插入式注解的原理，为了更好的说清楚，引入了
+java
+的编译过程，并介绍了插入式注解在编译过程中的哪个阶段；插入式注解主要是操作了AST，JCTree
+用来封装 AST 节点，TreeMaker 是操作 AST的工具，并自己模拟实现了 lombok
+的 getter 和 setter 注解，最终自动生成了 getter 和 setter
+方法；最后简单介绍了运行时注解的原理</p>
+<h2 id="引文">引文</h2>
+<p><a target="_blank" rel="noopener" href="https://rensifei.site/2017/03/javac/">javac源码笔记与简单的编译原理</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/havedream_one/article/details/124141251">java
+抽象语法树（AST）系列一：概述</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.mythsman.com/post/5d2c11c767f841464434a3bf/">Lombok原理分析与功能实现</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_38860401/article/details/126593388">Java编译时注解学习，并简单实现Lombok</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/u014454538/article/details/122531293">3.
+自定义Java编译时注解处理器</a></p>
+<p><a target="_blank" rel="noopener" href="https://heapdump.cn/c/2608464/lecture/2643150">（第二讲）JVM字节码的探索与实践应用之《注解的原理与应用》</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/java/" rel="tag"># java</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/25/java/java-reflect/" rel="prev" title="java 反射机制与代码走读">
+      <i class="fa fa-chevron-left"></i> java 反射机制与代码走读
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/27/kafka/kafka-theory/" rel="next" title="kafka 运行机制">
+      kafka 运行机制 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E8%A7%A3%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-number">1.</span> <span class="nav-text">注解的分类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E8%A7%A3%E7%9A%84%E4%BD%9C%E7%94%A8%E4%B8%8E%E5%A5%BD%E5%A4%84"><span class="nav-number">2.</span> <span class="nav-text">注解的作用与好处</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%96%E8%AF%91%E8%BF%87%E7%A8%8B"><span class="nav-number">3.</span> <span class="nav-text">编译过程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%89%8D%E7%AB%AF%E7%BC%96%E8%AF%91"><span class="nav-number">3.1.</span> <span class="nav-text">前端编译</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#parse-and-enter"><span class="nav-number">3.1.1.</span> <span class="nav-text">Parse and Enter</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#annotation-processing"><span class="nav-number">3.1.2.</span> <span class="nav-text">Annotation Processing</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#analyse-and-generate"><span class="nav-number">3.1.3.</span> <span class="nav-text">Analyse and Generate</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%90%8E%E7%AB%AF%E7%BC%96%E8%AF%91"><span class="nav-number">3.2.</span> <span class="nav-text">后端编译</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8F%92%E5%85%A5%E5%BC%8F%E6%B3%A8%E8%A7%A3"><span class="nav-number">4.</span> <span class="nav-text">插入式注解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%9F%E7%90%86"><span class="nav-number">4.1.</span> <span class="nav-text">原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%A4%E8%AF%86%E6%8A%BD%E8%B1%A1%E8%AF%AD%E6%B3%95%E6%A0%91"><span class="nav-number">4.2.</span> <span class="nav-text">认识抽象语法树</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%93%8D%E4%BD%9C%E6%8A%BD%E8%B1%A1%E8%AF%AD%E6%B3%95%E6%A0%91"><span class="nav-number">4.3.</span> <span class="nav-text">操作抽象语法树</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#jctree"><span class="nav-number">4.3.1.</span> <span class="nav-text">JCTree</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#treemaker"><span class="nav-number">4.3.2.</span> <span class="nav-text">TreeMaker</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B3%A8%E8%A7%A3%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-number">4.4.</span> <span class="nav-text">注解处理器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9E%E4%BE%8B%E6%BC%94%E7%A4%BA"><span class="nav-number">4.5.</span> <span class="nav-text">实例演示</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#demo1.-javac-%E7%BC%96%E8%AF%91%E7%89%88"><span class="nav-number">4.5.1.</span> <span class="nav-text">Demo1. Javac 编译版</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#demo.2-mvn%E6%89%93%E5%8C%85%E7%89%88"><span class="nav-number">4.5.2.</span> <span class="nav-text">Demo.2 mvn打包版</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%B3%A8%E8%A7%A3%E5%B7%A5%E7%A8%8B"><span class="nav-number">4.5.2.1.</span> <span class="nav-text">注解工程</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95%E5%B7%A5%E7%A8%8B"><span class="nav-number">4.5.2.2.</span> <span class="nav-text">测试工程</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%81%87%E5%88%B0%E9%97%AE%E9%A2%98"><span class="nav-number">4.5.3.</span> <span class="nav-text">遇到问题</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B3%A8%E8%A7%A3"><span class="nav-number">5.</span> <span class="nav-text">运行时注解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%9F%E7%90%86-1"><span class="nav-number">5.1.</span> <span class="nav-text">原理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E4%BE%8B"><span class="nav-number">5.1.1.</span> <span class="nav-text">实例</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%95%E6%96%87"><span class="nav-number">7.</span> <span class="nav-text">引文</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : 'e45f627d814c7ec3bcd76e5e3b31c00f',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

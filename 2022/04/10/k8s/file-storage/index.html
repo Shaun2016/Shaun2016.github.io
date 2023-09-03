@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="由于容器和Pod是短暂的，会被频繁销毁和创建，容器销毁时，内部的文件系统也会被清理。为了持久化保存容器的数据，可以使用Kubernates Volume">
+<meta property="og:type" content="article">
+<meta property="og:title" content="k8s-数据管理">
+<meta property="og:url" content="http://shaun2016.github.io/2022/04/10/k8s/file-storage/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="由于容器和Pod是短暂的，会被频繁销毁和创建，容器销毁时，内部的文件系统也会被清理。为了持久化保存容器的数据，可以使用Kubernates Volume">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220417035033623.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220417035117442.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220417035331218.png">
+<meta property="article:published_time" content="2022-04-09T18:22:02.000Z">
+<meta property="article:modified_time" content="2022-12-23T05:19:42.589Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="k8s">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/k8s/image-20220417035033623.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2022/04/10/k8s/file-storage/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>k8s-数据管理 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2022/04/10/k8s/file-storage/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          k8s-数据管理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-10 02:22:02" itemprop="dateCreated datePublished" datetime="2022-04-10T02:22:02+08:00">2022-04-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-12-23 13:19:42" itemprop="dateModified" datetime="2022-12-23T13:19:42+08:00">2022-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/k8s/" itemprop="url" rel="index"><span itemprop="name">k8s</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>由于容器和Pod是短暂的，会被频繁销毁和创建，容器销毁时，内部的文件系统也会被清理。为了持久化保存容器的数据，可以使用Kubernates
+Volume</p>
+</blockquote>
+<span id="more"></span>
+<h3 id="emptydir-volume">emptyDir Volume</h3>
+<p>emptyDir是Host上的一个空目录，对于容器是持久化的，对于Pod不是。emptyDir
+Volume的生命周期与Pod一致</p>
+<p>适用场景：</p>
+<ol type="1">
+<li><p>Pod中的容器需要通过文件传递数据</p></li>
+<li><p>Pod中的容器临时共享存储空间</p></li>
+</ol>
+<h3 id="hostpath-volume">hostPath Volume</h3>
+<p>hostPath
+Volume将Host文件系统中已有的目录mount给Pod的容器，这样会将Pod与节点耦合，限制了Pod的创建</p>
+<p>适用场景：需要访问kubernetes或docker内部数据（配置文件或二进制文件）的应用</p>
+<h3 id="云存储">云存储</h3>
+<p>如Elastic Block Store</p>
+<h3 id="pvpvc">PV&amp;PVC</h3>
+<p>Persistent
+Volume（PV）是外部存储系统中的一块空间，由管理员创建和维护。具有持久性，生命周期独立于Pod</p>
+<p>Persistent Volume
+Claim（PVC）是对PV的申请，由普通账号创建和维护，需要为Pod分配存储资源时，用户创建一个PVC，指明存储资源的小大和访问权限等信息</p>
+<p>k8s支持的PV类型有：EBS，Ceph，NFS等</p>
+<p>Think：为什么不直接为Pod创建云存储空间，而是通过PV-PVC</p>
+<h4 id="nfs">NFS</h4>
+<p>NFS（network file
+system）通过网络，使不同的机器不同的系统实现文件共享。NFS客户端可以将NFS服务器共享的目录挂载到本地的文件系统中，访问目录如同访问本地目录一样</p>
+<h5 id="创建nfs服务器">创建NFS服务器</h5>
+<blockquote>
+<p>在node1节点安装nfs服务</p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装nfs服务组件</span></span><br><span class="line">yum install nfs-utils -y</span><br><span class="line">mkdir /home/work/nfs</span><br><span class="line">cat &gt; /etc/exports &lt;&lt;EOF</span><br><span class="line">/home/work/nfs 192.168.174.0/24(rw,sync,no_root_squash)</span><br><span class="line">EOF</span><br><span class="line">systemctl start rpcbind</span><br><span class="line">systemctl start nfs</span><br><span class="line">cd /etc</span><br><span class="line">exportfs -r</span><br><span class="line">netstat -ntlp</span><br></pre></td></tr></table></figure>
+<h5 id="客户端配置">客户端配置</h5>
+<p>搜索网络中可用的共享目录 <code>showmount -e node1</code></p>
+<p>创建本地目录并挂载共享目录</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mkdir /home/work/mnt</span><br><span class="line">mount -t nfs node1:/home/work/nfs /home/work/mnt</span><br><span class="line">cd /home/work/mnt &amp;&amp; ll</span><br></pre></td></tr></table></figure>
+<h4 id="创建pv">创建PV</h4>
+<p>编写配置文件 nfs-pv1.yml，手动创建PV的方式叫静态供给</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolume</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">pv-nginx-html</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">capacity:</span></span><br><span class="line">        <span class="attr">storage:</span> <span class="string">2Gi</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">persistentVolumeReclaimPolicy:</span> <span class="string">Retain</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-html</span></span><br><span class="line">    <span class="attr">nfs:</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/home/work/nfs/nginx/html</span></span><br><span class="line">        <span class="attr">server:</span> <span class="string">node1</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolume</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">pv-nginx-log</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">capacity:</span></span><br><span class="line">        <span class="attr">storage:</span> <span class="string">2Gi</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">persistentVolumeReclaimPolicy:</span> <span class="string">Retain</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-log</span></span><br><span class="line">    <span class="attr">nfs:</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/home/work/nfs/nginx/log</span></span><br><span class="line">        <span class="attr">server:</span> <span class="string">node1</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolume</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">pv-nginx-conf</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">capacity:</span></span><br><span class="line">        <span class="attr">storage:</span> <span class="string">2Gi</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">persistentVolumeReclaimPolicy:</span> <span class="string">Retain</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-conf</span></span><br><span class="line">    <span class="attr">nfs:</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/home/work/nfs/nginx/conf</span></span><br><span class="line">        <span class="attr">server:</span> <span class="string">node1</span></span><br></pre></td></tr></table></figure>
+<p>说明：</p>
+<ol type="1">
+<li>capacity指定PV容量</li>
+<li>accessModes 指定访问模式：
+<ol type="1">
+<li>ReadWriteOnce：可读可写，只支持被单个节点挂载</li>
+<li>ReadOnlyMany：只读，可被多个节点挂载</li>
+<li>ReadWriteMany：可读可写，被多个节点挂载</li>
+</ol></li>
+<li>persistentVolumeReclaimPolicy 指定PV的回收策略：
+<ol type="1">
+<li>Retain：管理员手动清理</li>
+<li>Recycle：删除数据（NFS和HostPath支持）</li>
+<li>Delete：删除存储资源（EBS等云存储支持）</li>
+</ol></li>
+<li>storageClassName 指定PV的类型为nfs</li>
+<li>nfs的path需要是nfs服务器是存在的路径</li>
+</ol>
+<p>创建pv1：<code>Kubectl apply -f nfs-pv1.yml</code></p>
+<p>查看pv：<code>kubectl get pv</code></p>
+<h4 id="创建pvc">创建pvc</h4>
+<p>编写配置文件 nfs-pvc1.yml</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolumeClaim</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">nginx-html-pvc</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">resources:</span></span><br><span class="line">        <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">storage:</span> <span class="string">1Gi</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-html</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolumeClaim</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">nginx-conf-pvc</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">resources:</span></span><br><span class="line">        <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">storage:</span> <span class="string">1Gi</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-conf</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolumeClaim</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">nginx-log-pvc</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">    <span class="attr">accessModes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">    <span class="attr">resources:</span></span><br><span class="line">        <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">storage:</span> <span class="string">1Gi</span></span><br><span class="line">    <span class="attr">storageClassName:</span> <span class="string">nginx-log</span></span><br></pre></td></tr></table></figure>
+<p>创建pvc：<code>kubectl apply -f nfs-pvc1.yml</code></p>
+<p>查看pvc：<code>kubectl get pvc</code></p>
+<h4 id="在pod中使用存储">在Pod中使用存储</h4>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">2</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">nginx:1.7.9</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br><span class="line">        <span class="attr">volumeMounts:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-log</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/var/log/nginx</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-html</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/nginx/html</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-conf-d</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/nginx/conf.d</span></span><br><span class="line">      <span class="attr">tolerations:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">        <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">        <span class="attr">value:</span> <span class="string">&quot;nginx&quot;</span></span><br><span class="line">        <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-log</span></span><br><span class="line">        <span class="attr">persistentVolumeClaim:</span></span><br><span class="line">          <span class="attr">claimName:</span> <span class="string">nginx-log-pvc</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-html</span></span><br><span class="line">        <span class="attr">persistentVolumeClaim:</span></span><br><span class="line">          <span class="attr">claimName:</span> <span class="string">nginx-html-pvc</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx-conf-d</span></span><br><span class="line">        <span class="attr">persistentVolumeClaim:</span></span><br><span class="line">          <span class="attr">claimName:</span> <span class="string">nginx-conf-pvc</span></span><br></pre></td></tr></table></figure>
+<p>这样，将容器内nginx的html、conf、log挂载到nfs服务器上，方便编写页面、修改配置、查看日志</p>
+<p>Think：多个应用要挂载路径可能很多，需要创建很多的PV和PVC，管理很不方便，而且PV一般由管理员创建，PVC由开发人员创建，如果每个挂载路径都要要求管理员创建PV，效率低下，不便于管理，该如何解决</p>
+<p>Think：在nfs中修改nginx配置文件后，需要重启Pod才可以让配置生效，如果让Pod按照顺序先后重启，而不是全部同时重启</p>
+<h4 id="回收pv">回收PV</h4>
+<p><code>kubectl delete pvc &#123;pvc_name&#125;</code></p>
+<h4 id="pv-动态供给">PV 动态供给</h4>
+<p>静态供给的缺点有：</p>
+<ol type="1">
+<li>需要提前创建PV，还需要在nfs等共享存储上提前创建目录，管理员的工作增加，效率低；</li>
+<li>维护成本高</li>
+</ol>
+<p>为了解决上面的问题，使用动态共给</p>
+<p>https://kubernetes.io/docs/concepts/storage/storage-classes/#nfs</p>
+<h5 id="安装动态pv">安装动态pv</h5>
+<p>使用helm安装nfs-client-provisioner：<code>helm install nfs-client-provisioner stable/nfs-client-provisioner --set nfs.server=node1 --set nfs.path=/home/work/nfs --set storageClass.defaultClass=true --set image.repository=rkevin/nfs-subdir-external-provisioner --set image.tag=fix-k8s-1.20</code></p>
+<h5 id="验证">验证</h5>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">cat</span> <span class="string">&gt;</span> <span class="string">test-pvc.yaml</span> <span class="string">&lt;&lt;</span> <span class="string">EOF</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PersistentVolumeClaim</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">test-nfs-pvc</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">accessModes:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">ReadWriteMany</span></span><br><span class="line">  <span class="attr">storageClassName:</span> <span class="string">nfs-client</span></span><br><span class="line">  <span class="attr">resources:</span></span><br><span class="line">    <span class="attr">requests:</span></span><br><span class="line">      <span class="attr">storage:</span> <span class="string">1Gi</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+<figure>
+<img src="/images/k8s/image-20220417035033623.png" alt="image-20220417035033623">
+<figcaption aria-hidden="true">image-20220417035033623</figcaption>
+</figure>
+<figure>
+<img src="/images/k8s/image-20220417035117442.png" alt="image-20220417035117442">
+<figcaption aria-hidden="true">image-20220417035117442</figcaption>
+</figure>
+<figure>
+<img src="/images/k8s/image-20220417035331218.png" alt="image-20220417035331218">
+<figcaption aria-hidden="true">image-20220417035331218</figcaption>
+</figure>
+<p>无需手动创建pv</p>
+<h3 id="存在问题">存在问题</h3>
+<ol type="1">
+<li>为什么不直接为Pod创建云存储空间，而是通过PV-PVC（创建的云存储空间是一次性创建很大一块空间，应用是很多的，每个应用都挂载到一个独立的云存储空间不利于管理和维护，容易造成空间的浪费）</li>
+<li>挂载路径太多，PV&amp;PVC不便于管理，如何解决（答案：PV的动态供给）</li>
+<li>重启nginx服务，如何不全部同时重启，防止服务不可用</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/k8s/" rel="tag"># k8s</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/08/learning-plan/" rel="prev" title="学习计划">
+      <i class="fa fa-chevron-left"></i> 学习计划
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/16/k8s/secret-configmap/" rel="next" title="k8s-secret与configmap">
+      k8s-secret与configmap <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#emptydir-volume"><span class="nav-number">1.</span> <span class="nav-text">emptyDir Volume</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#hostpath-volume"><span class="nav-number">2.</span> <span class="nav-text">hostPath Volume</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%91%E5%AD%98%E5%82%A8"><span class="nav-number">3.</span> <span class="nav-text">云存储</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#pvpvc"><span class="nav-number">4.</span> <span class="nav-text">PV&amp;PVC</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#nfs"><span class="nav-number">4.1.</span> <span class="nav-text">NFS</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%88%9B%E5%BB%BAnfs%E6%9C%8D%E5%8A%A1%E5%99%A8"><span class="nav-number">4.1.1.</span> <span class="nav-text">创建NFS服务器</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE"><span class="nav-number">4.1.2.</span> <span class="nav-text">客户端配置</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%88%9B%E5%BB%BApv"><span class="nav-number">4.2.</span> <span class="nav-text">创建PV</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%88%9B%E5%BB%BApvc"><span class="nav-number">4.3.</span> <span class="nav-text">创建pvc</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%9C%A8pod%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%AD%98%E5%82%A8"><span class="nav-number">4.4.</span> <span class="nav-text">在Pod中使用存储</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%9B%9E%E6%94%B6pv"><span class="nav-number">4.5.</span> <span class="nav-text">回收PV</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#pv-%E5%8A%A8%E6%80%81%E4%BE%9B%E7%BB%99"><span class="nav-number">4.6.</span> <span class="nav-text">PV 动态供给</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AE%89%E8%A3%85%E5%8A%A8%E6%80%81pv"><span class="nav-number">4.6.1.</span> <span class="nav-text">安装动态pv</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%AA%8C%E8%AF%81"><span class="nav-number">4.6.2.</span> <span class="nav-text">验证</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%98%E5%9C%A8%E9%97%AE%E9%A2%98"><span class="nav-number">5.</span> <span class="nav-text">存在问题</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '86f01d89d44483e7afcdfd06c75d68e1',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

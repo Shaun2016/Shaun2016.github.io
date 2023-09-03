@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍数据库的乐观锁、悲观锁、事务、MVCC">
+<meta property="og:type" content="article">
+<meta property="og:title" content="数据库锁与事务">
+<meta property="og:url" content="http://shaun2016.github.io/2022/07/17/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E9%94%81/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍数据库的乐观锁、悲观锁、事务、MVCC">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/mysql/image-20220714030233959.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/mysql/mvcc.png">
+<meta property="article:published_time" content="2022-07-16T18:25:44.000Z">
+<meta property="article:modified_time" content="2022-12-23T05:19:42.590Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="mysql">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/mysql/image-20220714030233959.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2022/07/17/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E9%94%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>数据库锁与事务 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2022/07/17/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E9%94%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          数据库锁与事务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-07-17 02:25:44" itemprop="dateCreated datePublished" datetime="2022-07-17T02:25:44+08:00">2022-07-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-12-23 13:19:42" itemprop="dateModified" datetime="2022-12-23T13:19:42+08:00">2022-12-23</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍数据库的乐观锁、悲观锁、事务、MVCC</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="乐观锁">乐观锁</h2>
+<h3 id="上锁流程">上锁流程</h3>
+<ol type="1">
+<li>读取被操作对象，记录某个特征信息</li>
+<li>对对象进行业务逻辑处理</li>
+<li>数据回写前，检查特征信息是否有变化</li>
+<li>如果一致，回写；如果不一致，重试上述流程</li>
+</ol>
+<h3 id="性质">性质</h3>
+<p>乐观锁的本质是一种读写<strong>策略</strong>，没有真正的在被操作对象上加锁</p>
+<p>对于操作方，有可能失败重试，反复读写，牺牲了操作方的性能（利他策略），但提升了被操作对象的并发度</p>
+<h3 id="应用场景">应用场景</h3>
+<p>读多，极少修改，操作方重试概率低的场景</p>
+<h2 id="悲观锁">悲观锁</h2>
+<p>操作方对被操作对象加锁，等锁释放后其他操作方才能加锁（利己策略）</p>
+<h3 id="分类">分类</h3>
+<h4 id="s锁">S锁</h4>
+<p>Shared Lock，共享锁，读锁</p>
+<p>A加了S锁，其他人可以加S锁，不可加X锁</p>
+<p>如何加S锁（哪些操作会加S锁）：<code>select * from user where ... lock in share mode;</code></p>
+<p>如何释放S锁：事务结束</p>
+<h4 id="u锁sqlserver">U锁（SQLServer）</h4>
+<p>更新锁，加了U锁，不能加U锁和X锁，可以加S锁（相当于加了S锁并预定了X锁）</p>
+<h4 id="x锁">X锁</h4>
+<p>Exclusive Lock，排他锁，写锁</p>
+<p>加了X锁，其他人不能加任何锁</p>
+<p>如何加X锁（哪些操作会加X锁）：<code>select * from user where ... for update;</code>，<code>insert</code>，<code>update</code>，<code>delete</code></p>
+<p>如何释放X锁：事务结束</p>
+<h3 id="加锁原则">加锁原则</h3>
+<p>最小知道原则</p>
+<h3 id="悲观锁的作用范围">悲观锁的作用范围</h3>
+<ol type="1">
+<li>行锁</li>
+<li>页锁</li>
+<li>表锁</li>
+</ol>
+<h3 id="锁升级">锁升级</h3>
+<p>在RR隔离级别中，行锁是加在索引上，如果查询条件不走索引，会加表锁（升级）</p>
+<h4 id="实验锁升级">实验：锁升级</h4>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"># clinet 1</span><br><span class="line">begin; </span><br><span class="line">select * from actor where first_name = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">update actor set first_name = &#x27;2&#x27; where id = 1;</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure>
+<h3 id="死锁">死锁</h3>
+<h4 id="死锁的条件">死锁的条件</h4>
+<ol type="1">
+<li>互斥：一把钥匙，只能一个人拿</li>
+<li>不剥夺：一个人拿了钥匙，别人不能抢</li>
+<li>请求和保持：有了一个资源，不放手，还要请求其他资源</li>
+<li>循环等待：与另一个人的请求资源形成环</li>
+</ol>
+<h4 id="死锁的解决方案">死锁的解决方案</h4>
+<p>打破任意一个条件即可</p>
+<ol type="1">
+<li>打破互斥条件：不用悲观锁，改为乐观锁</li>
+<li>打破不剥夺：A获取资源B，还要获取资源C，如果申请失败，A释放资源B</li>
+<li>打破请求和保持：保留和请求只留一个，如果需要持有两个资源，已持有一个，需放手后才能持有另一个</li>
+<li>打破循环等待：按顺序抢占锁</li>
+</ol>
+<h4 id="如何定位死锁">如何定位死锁</h4>
+<ol type="1">
+<li>数据库死锁日志：<code>SHOW ENGINE INNODB STATUS;</code></li>
+<li>线程dump文件：<code>jmap -dump:format=b,file=&#123;filename&#125; &#123;pid&#125;</code></li>
+<li>进程堆栈信息：<code>jstack &#123;pid&#125;</code></li>
+</ol>
+<p>本文只介绍数据库层面，其他层面捎带</p>
+<h4 id="死锁实验">死锁实验</h4>
+<p>有对象C，有一个操作：先对C加S锁，再对C加X锁</p>
+<p>A对C加了S锁，B对C加了S锁，A对C加X锁失败，B对C加X锁也失败，A和B都不会主动释放C的S锁，产生了死锁</p>
+<p>什么场景会先加S后加X呢？</p>
+<h5 id="防止产生s与x锁死锁的解决方案">防止产生S与X锁死锁的解决方案</h5>
+<ol type="1">
+<li>获取X锁失败后，主动释放S锁，重试</li>
+<li>使用U锁，允许其他人加S锁，但不能加U和X</li>
+<li>直接加X锁</li>
+</ol>
+<h5 id="实验1s锁与x锁的阻塞情况">实验1：S锁与X锁的阻塞情况</h5>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">## S 锁不能加X锁的情况</span><br><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2 pending...</span><br><span class="line"># client 1</span><br><span class="line">commit;</span><br><span class="line"># client 2 running or wait timeout exceeded</span><br><span class="line">## X锁不能加S锁的情况</span><br><span class="line"># 同理</span><br></pre></td></tr></table></figure>
+<h5 id="实验2数据库层面制造死锁并定位死锁">实验2：数据库层面制造死锁并定位死锁</h5>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"># client 1</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 2</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1 lock in share mode;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line"># client 2</span><br><span class="line">select * from actor where actor_id = 1 for update;</span><br><span class="line">SHOW ENGINE INNODB STATUS;</span><br></pre></td></tr></table></figure>
+<h4 id="mysql如何自动处理死锁">mysql如何自动处理死锁</h4>
+<ol type="1">
+<li>超时等待</li>
+<li>死锁检测：谁触发死锁谁回滚当前事务，其他事务继续执行</li>
+</ol>
+<h5 id="死锁检测的原理">死锁检测的原理</h5>
+<p>事务为顶点，锁为边（需求方指向持有方）
+事务A持有L2锁，A需要L1锁，故有一条边由A指向B</p>
+<p>事务B持有L1锁，B需要L2锁，故有一条边由B指向A</p>
+<figure>
+<img src="/images/mysql/image-20220714030233959.png" alt="image-20220714030233959">
+<figcaption aria-hidden="true">image-20220714030233959</figcaption>
+</figure>
+<h2 id="事务">事务</h2>
+<h3 id="事务正确执行的四个要素acid">事务正确执行的四个要素：ACID</h3>
+<p>A：atomicity 原子性，要么全做，要么全不做</p>
+<p>C：consistency 一致性，事务前后的数据是一致的</p>
+<p>I：isolation
+隔离性，多个并发事务同时读写时，防止多个事务并发执行时由于交叉执行导致数据不一致</p>
+<p>D：durability 持久性 事务结束后，对数据的修改是永久的</p>
+<h3 id="事务的开始与结束">事务的开始与结束</h3>
+<p>开始：以第一个DML（Data Manipulation Language，如select, delete,
+update, insert）语句的执行开始</p>
+<p>结束：commit, rollback</p>
+<h3 id="事务的隔离">事务的隔离</h3>
+<h4 id="事务隔离解决的问题">事务隔离解决的问题</h4>
+<p>ACID中的ACD对并发事务和单一事务是没有区别的，隔离性是防止并发事务执行时产生的影响，如果没有隔离性，并发事务会带来的问题有：</p>
+<ol type="1">
+<li>脏写：写了被其他事务覆盖，没生效</li>
+<li>脏读：读到未提交的中间结果（中间结果可以回滚，不认为是正确的数据）</li>
+<li>不可重复读：在一个事务内多次读结果不一致</li>
+<li>幻读：一次事务内读到新数据</li>
+</ol>
+<p>所以，需要解决以上问题</p>
+<h4 id="事务的隔离级别">事务的隔离级别</h4>
+<table>
+<thead>
+<tr class="header">
+<th>隔离级别</th>
+<th>脏读</th>
+<th>不可重复读</th>
+<th>幻读</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>读未提交（Read uncommitted）</td>
+<td>√</td>
+<td>√</td>
+<td>√</td>
+</tr>
+<tr class="even">
+<td>读提交（read committed）</td>
+<td>×</td>
+<td>√</td>
+<td>√</td>
+</tr>
+<tr class="odd">
+<td>可重复读（repeatable read）</td>
+<td>×</td>
+<td>×</td>
+<td>√</td>
+</tr>
+<tr class="even">
+<td>串行化（Serializable）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+</tbody>
+</table>
+<p>MySQL 语句的默认事务隔离级别：rr
+可重复读，通过<code>SELECT @@transaction_isolation;</code>查看</p>
+<p>修改隔离级别：<code>SET SESSION transaction_isolation = 'READ-UNCOMMITTED';</code></p>
+<h4 id="不同隔离级别通过锁的实现思路">不同隔离级别通过锁的实现思路</h4>
+<table>
+<thead>
+<tr class="header">
+<th>隔离级别</th>
+<th>解决的问题</th>
+<th>实现思路</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>RC</td>
+<td>脏读</td>
+<td>写时加X锁</td>
+</tr>
+<tr class="even">
+<td>RR</td>
+<td>不可重复读</td>
+<td>读时加S锁</td>
+</tr>
+<tr class="odd">
+<td>Serializable</td>
+<td>幻读</td>
+<td>事务之间串行执行</td>
+</tr>
+</tbody>
+</table>
+<h4 id="实验不同隔离级别下的问题复现">实验：不同隔离级别下的问题复现</h4>
+<ol type="1">
+<li><p>脏读</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"># clinet 2</span><br><span class="line">begin;</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-UNCOMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># client 2</span><br><span class="line">rollback;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure></li>
+<li><p>不可重复读</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"># client1</span><br><span class="line">SET SESSION transaction_isolation = &#x27;READ-COMMITTED&#x27;;</span><br><span class="line">begin;</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line"># clinet 2</span><br><span class="line">update actor set first_name = &#x27;Jans&#x27; where actor_id = 1;</span><br><span class="line"># client 1</span><br><span class="line">select * from actor where actor_id = 1;</span><br><span class="line">commit;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="多版本并发控制-mvcc">多版本并发控制 MVCC</h3>
+<p>Multi-Version Concurrency Control</p>
+<p>在上小节中，通过S锁或X锁解决了一些并发事务的问题，但是这种方式存在以下问题：</p>
+<ol type="1">
+<li>并发读写数据库时，读操作会阻塞写操作</li>
+<li>加锁带来的资源消耗</li>
+</ol>
+<p>如何解决上面的问题，也能保证事务的正确性呢</p>
+<h4 id="思路设想">思路设想</h4>
+<p>我的实现思路：为每个事务建立一个副本，不加锁的操作（select）从副本中读数据，涉及到加锁操作在原表中通过悲观锁操作</p>
+<p>难点：</p>
+<ol type="1">
+<li>副本的形式是什么，是拷贝完整的表，还是一部分？</li>
+<li>创建副本时应该如何控制并发问题？</li>
+<li>副本太多可能导致磁盘不足怎么办？</li>
+</ol>
+<p>MySQL的实现思路：在有变更的操作时创建副本，事务找到它可见的最新副本，用于不加锁操作，涉及加锁操作，在原表中通过悲观锁操作</p>
+<p>难点：副本形式，如何找到可见的最新副本</p>
+<h4 id="实现原理">实现原理</h4>
+<p>MySQL的数据引擎对MVCC的实现原理</p>
+<p>依赖于记录中的三个隐藏字段（row_id，trx_id, rollback_ptr），undo
+log，read view</p>
+<p>trx_id：该记录最新修改的事务号</p>
+<p>rollback_ptr：上一个版本指针</p>
+<p>undo log：回滚日志</p>
+<p>read view：可见性</p>
+<figure>
+<img src="/images/mysql/mvcc.png" alt="image-20220714030233959">
+<figcaption aria-hidden="true">image-20220714030233959</figcaption>
+</figure>
+<p>如上图，事务5来读取某一行数据，如那行数据的row_id=24，记录中trx_id
+&gt; 5，对事务5不可见，通过rollback_ptr在undo
+log中找上个版本的记录，发现trx_id &gt; 5，再找上个版本的记录，发现trx_id
+&lt; 5，则该记录是事务5可见的最新版本，读数据</p>
+<h4 id="使用mvcc实现事务隔离级别该怎么做">使用MVCC实现事务隔离级别，该怎么做</h4>
+<p>当前读：从数据表中，不同语句根据隔离级别，使用悲观锁处理冲突，如<code>select ... in share mode</code>，<code>select ... for update</code></p>
+<p>快照读：使用MVCC，从表或undo
+log中读数据，不需要使用悲观锁，如<code>select ...</code></p>
+<p>RC和RR都可以通过快照读来实现，解决对应的问题</p>
+<p>MySQL 8.x 是通过MVCC实现的RC和RR，不是通过悲观锁</p>
+<h3 id="处理事务的注意事项">处理事务的注意事项</h3>
+<ol type="1">
+<li>查询条件通过索引，避免无索引行升级为表锁</li>
+<li>加锁时，缩小锁的范围，避免间隙锁</li>
+<li>尽量减少锁定资源量和时间，将加锁操作放到最后执行</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/mysql/" rel="tag"># mysql</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/06/30/algorithm/stack-heap/" rel="prev" title="栈与队列">
+      <i class="fa fa-chevron-left"></i> 栈与队列
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/07/31/architecture/service-cache/" rel="next" title="架构设计-缓存">
+      架构设计-缓存 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%90%E8%A7%82%E9%94%81"><span class="nav-number">1.</span> <span class="nav-text">乐观锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8A%E9%94%81%E6%B5%81%E7%A8%8B"><span class="nav-number">1.1.</span> <span class="nav-text">上锁流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%A7%E8%B4%A8"><span class="nav-number">1.2.</span> <span class="nav-text">性质</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">1.3.</span> <span class="nav-text">应用场景</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%82%B2%E8%A7%82%E9%94%81"><span class="nav-number">2.</span> <span class="nav-text">悲观锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E7%B1%BB"><span class="nav-number">2.1.</span> <span class="nav-text">分类</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#s%E9%94%81"><span class="nav-number">2.1.1.</span> <span class="nav-text">S锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#u%E9%94%81sqlserver"><span class="nav-number">2.1.2.</span> <span class="nav-text">U锁（SQLServer）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#x%E9%94%81"><span class="nav-number">2.1.3.</span> <span class="nav-text">X锁</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A0%E9%94%81%E5%8E%9F%E5%88%99"><span class="nav-number">2.2.</span> <span class="nav-text">加锁原则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%82%B2%E8%A7%82%E9%94%81%E7%9A%84%E4%BD%9C%E7%94%A8%E8%8C%83%E5%9B%B4"><span class="nav-number">2.3.</span> <span class="nav-text">悲观锁的作用范围</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%94%81%E5%8D%87%E7%BA%A7"><span class="nav-number">2.4.</span> <span class="nav-text">锁升级</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C%E9%94%81%E5%8D%87%E7%BA%A7"><span class="nav-number">2.4.1.</span> <span class="nav-text">实验：锁升级</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%BB%E9%94%81"><span class="nav-number">2.5.</span> <span class="nav-text">死锁</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%BB%E9%94%81%E7%9A%84%E6%9D%A1%E4%BB%B6"><span class="nav-number">2.5.1.</span> <span class="nav-text">死锁的条件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%BB%E9%94%81%E7%9A%84%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">2.5.2.</span> <span class="nav-text">死锁的解决方案</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%AE%9A%E4%BD%8D%E6%AD%BB%E9%94%81"><span class="nav-number">2.5.3.</span> <span class="nav-text">如何定位死锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%BB%E9%94%81%E5%AE%9E%E9%AA%8C"><span class="nav-number">2.5.4.</span> <span class="nav-text">死锁实验</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%98%B2%E6%AD%A2%E4%BA%A7%E7%94%9Fs%E4%B8%8Ex%E9%94%81%E6%AD%BB%E9%94%81%E7%9A%84%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">2.5.4.1.</span> <span class="nav-text">防止产生S与X锁死锁的解决方案</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C1s%E9%94%81%E4%B8%8Ex%E9%94%81%E7%9A%84%E9%98%BB%E5%A1%9E%E6%83%85%E5%86%B5"><span class="nav-number">2.5.4.2.</span> <span class="nav-text">实验1：S锁与X锁的阻塞情况</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C2%E6%95%B0%E6%8D%AE%E5%BA%93%E5%B1%82%E9%9D%A2%E5%88%B6%E9%80%A0%E6%AD%BB%E9%94%81%E5%B9%B6%E5%AE%9A%E4%BD%8D%E6%AD%BB%E9%94%81"><span class="nav-number">2.5.4.3.</span> <span class="nav-text">实验2：数据库层面制造死锁并定位死锁</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#mysql%E5%A6%82%E4%BD%95%E8%87%AA%E5%8A%A8%E5%A4%84%E7%90%86%E6%AD%BB%E9%94%81"><span class="nav-number">2.5.5.</span> <span class="nav-text">mysql如何自动处理死锁</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%AD%BB%E9%94%81%E6%A3%80%E6%B5%8B%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-number">2.5.5.1.</span> <span class="nav-text">死锁检测的原理</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1"><span class="nav-number">3.</span> <span class="nav-text">事务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E6%AD%A3%E7%A1%AE%E6%89%A7%E8%A1%8C%E7%9A%84%E5%9B%9B%E4%B8%AA%E8%A6%81%E7%B4%A0acid"><span class="nav-number">3.1.</span> <span class="nav-text">事务正确执行的四个要素：ACID</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%BC%80%E5%A7%8B%E4%B8%8E%E7%BB%93%E6%9D%9F"><span class="nav-number">3.2.</span> <span class="nav-text">事务的开始与结束</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E9%9A%94%E7%A6%BB"><span class="nav-number">3.3.</span> <span class="nav-text">事务的隔离</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E9%9A%94%E7%A6%BB%E8%A7%A3%E5%86%B3%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">3.3.1.</span> <span class="nav-text">事务隔离解决的问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB"><span class="nav-number">3.3.2.</span> <span class="nav-text">事务的隔离级别</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%8D%E5%90%8C%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB%E9%80%9A%E8%BF%87%E9%94%81%E7%9A%84%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF"><span class="nav-number">3.3.3.</span> <span class="nav-text">不同隔离级别通过锁的实现思路</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C%E4%B8%8D%E5%90%8C%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB%E4%B8%8B%E7%9A%84%E9%97%AE%E9%A2%98%E5%A4%8D%E7%8E%B0"><span class="nav-number">3.3.4.</span> <span class="nav-text">实验：不同隔离级别下的问题复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6-mvcc"><span class="nav-number">3.4.</span> <span class="nav-text">多版本并发控制 MVCC</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%80%9D%E8%B7%AF%E8%AE%BE%E6%83%B3"><span class="nav-number">3.4.1.</span> <span class="nav-text">思路设想</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="nav-number">3.4.2.</span> <span class="nav-text">实现原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8mvcc%E5%AE%9E%E7%8E%B0%E4%BA%8B%E5%8A%A1%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB%E8%AF%A5%E6%80%8E%E4%B9%88%E5%81%9A"><span class="nav-number">3.4.3.</span> <span class="nav-text">使用MVCC实现事务隔离级别，该怎么做</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E4%BA%8B%E5%8A%A1%E7%9A%84%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-number">3.5.</span> <span class="nav-text">处理事务的注意事项</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '340d3bd4910badd2651a85046fbb184f',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

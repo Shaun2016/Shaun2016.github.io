@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍 kafka 的延时消息">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka 延时消息">
+<meta property="og:url" content="http://shaun2016.github.io/2023/06/10/kafka/kafka-delay-queue/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍 kafka 的延时消息">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/kafka/%E5%BB%B6%E6%97%B6%E5%8F%91%E9%80%81.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/kafka/%E5%BB%B6%E6%97%B6%E6%B6%88%E8%B4%B9-%E5%8D%95topic.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/kafka/image-20230627172859178.png">
+<meta property="article:published_time" content="2023-06-10T12:59:00.000Z">
+<meta property="article:modified_time" content="2023-06-29T14:06:34.750Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="kafka">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/kafka/%E5%BB%B6%E6%97%B6%E5%8F%91%E9%80%81.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2023/06/10/kafka/kafka-delay-queue/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>kafka 延时消息 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/06/10/kafka/kafka-delay-queue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          kafka 延时消息
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-10 20:59:00" itemprop="dateCreated datePublished" datetime="2023-06-10T20:59:00+08:00">2023-06-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-06-29 22:06:34" itemprop="dateModified" datetime="2023-06-29T22:06:34+08:00">2023-06-29</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍 kafka 的延时消息</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="延时发送">延时发送</h2>
+<figure>
+<img src="/images/kafka/延时发送.drawio.png" alt="延时发送.drawio">
+<figcaption aria-hidden="true">延时发送.drawio</figcaption>
+</figure>
+<p>实现原理：</p>
+<ol type="1">
+<li>生产者发送到 __delay_topic</li>
+<li>延时监控服务定时查询 __delay_topic，判断是否达到业务方设置的
+delayTime 时间戳，达到了将消息转发到业务 topic</li>
+<li>消费者消费业务 topic</li>
+</ol>
+<p>这个方案对延时发送时间的准确性取决于监控服务的查询频率，假设延时发送为10s，查询频率是
+5s 一次，则最大的误差为 4.999s，频率越高精度越高</p>
+<p>这个方案存在的问题有：</p>
+<ol type="1">
+<li>占用更多磁盘空间：如果存在延时较长的消息，则需要延长所有消息的保存时间而无法清理，比如有延时10天和延时1小时的消息在一个__delay_topic中，只能保存10天以上</li>
+<li>不够灵活：一般消息的延时时间是由下游业务确定的，而延时发送需要生产者来控制</li>
+</ol>
+<p>上面问题的解决思路是，生产者将消息发送给消费者，由消费者控制延时时间，即延时消费</p>
+<h2 id="延时消费">延时消费</h2>
+<figure>
+<img src="/images/kafka/延时消费-单topic.drawio.png" alt="延时消费-单topic.drawio">
+<figcaption aria-hidden="true">延时消费-单topic.drawio</figcaption>
+</figure>
+<p>这个方案的好处是：</p>
+<ol type="1">
+<li>生产者不需要关心延时时间，完全交给消费者去处理，不同业务根据自身需要去设置延时时间和过期清理时间</li>
+<li>生产者不再需要保存两份消息，且可自行设置合理的清理时间，缓解了生产者服务
+kafka 集群压力</li>
+</ol>
+<p>延时消费相比于延时发送，解决了生产者侧消息积压的问题，试想为了支持某个高延时的下游业务将清理时间调高，对集群的压力是非常大的，一旦崩溃会影响所有下游业务；同时，数据在生产者和消费者都只需要保存一份</p>
+<p>下面讨论消费者服务如何控制延时消费</p>
+<h2 id="延时监控服务如何设计">延时监控服务如何设计</h2>
+<blockquote>
+<p>延时发送中的延时监控服务，和延时消费的消费者，是相同的思路</p>
+</blockquote>
+<p><strong>方案一 定时轮训</strong></p>
+<p>消费者每次poll一个消息，如果达不到延时时间，则不提交位移，并 sleep
+一段时间，实现周期性轮询</p>
+<p>这个方案轮询的时间要小于<code>max.poll.interval.ms</code>，否则会发生
+rebalance，存在问题：</p>
+<ol type="1">
+<li>资源浪费：大量无效轮训消耗系统资源</li>
+<li>存在误差：假设设置轮训时间是
+500ms，那么延时的最大误差就是499.999ms</li>
+</ol>
+<p><strong>方案二 根据剩余时间等待</strong></p>
+<p>消费者每次 poll
+一个消息，如果达不到延时时间，则不提交位移，计算还需要等待的时间，sleep
+这段时间后再 poll</p>
+<p>这个方案避免了无效轮训，但是等待时间如何大于
+<code>max.poll.interval.ms</code>，会导致 rebalance，所以不能使用 sleep
+的方式等待</p>
+<p>kafka consumer提供了暂停消费的API，暂停消费后 broker 不会认为
+consumer 挂掉，等待剩余时间后恢复消费，再拉取消息</p>
+<blockquote>
+<p>关于 <code>max.poll.interval.ms</code> 与
+<code>session.timeout.ms</code></p>
+<p><code>max.poll.interval.ms</code> ：如果 poll 在
+<code>max.poll.interval.ms</code>
+内没有被调用，心跳线程会检测到这种情况并发起离组请求，即消费者主动离开；
+<code>session.timeout.ms</code> ：在 0.10.1 版本之前，消费者是通过 poll
+请求与 broker 建立心跳，这样当消费处理时间较长时，就容易被 broker
+误认为断连，0.10.1 之后将心跳与处理解耦，由心跳线程单独向 broker
+发心跳包，如果心跳包间隔超过了 <code>session.timeout.ms</code>，则
+broker 认为 consumer 断连</p>
+<p><code>max.poll.interval.ms</code> 触发的断连是消费者主动发起的，
+<code>session.timeout.ms</code>触发的断连是消费者被动的</p>
+</blockquote>
+<p>所以可不可以理解为，调用了 pause api，消费者心跳线程就不会因为 poll
+间隔超过了 <code>max.poll.interval.ms</code>
+而发出断连请求，下面进行代码演示</p>
+<p>生产者代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">MyProducer</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">String</span> <span class="variable">TOPIC</span> <span class="operator">=</span> <span class="string">&quot;beihai&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> ExecutionException, InterruptedException &#123;</span><br><span class="line">        <span class="type">Properties</span> <span class="variable">properties</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Properties</span>();</span><br><span class="line">        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, <span class="string">&quot;127.0.0.1:9093,127.0.0.1:9094,127.0.0.1:9092&quot;</span>);</span><br><span class="line">        properties.put(ProducerConfig.ACKS_CONFIG, <span class="string">&quot;all&quot;</span>);</span><br><span class="line">        properties.put(ProducerConfig.RETRIES_CONFIG, <span class="number">0</span>);</span><br><span class="line">        properties.put(ProducerConfig.BATCH_SIZE_CONFIG, <span class="number">16384</span>);</span><br><span class="line">        properties.put(ProducerConfig.LINGER_MS_CONFIG, <span class="number">1</span>);</span><br><span class="line">        properties.put(ProducerConfig.BUFFER_MEMORY_CONFIG, <span class="number">33554432</span>);</span><br><span class="line">        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());</span><br><span class="line">        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());</span><br><span class="line">        KafkaProducer&lt;String, String&gt; kafkaProducer = <span class="keyword">new</span> <span class="title class_">KafkaProducer</span>&lt;&gt;(properties);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt;= <span class="number">10</span>; i++) &#123;</span><br><span class="line">            ProducerRecord&lt;String, String&gt; rec = <span class="keyword">new</span> <span class="title class_">ProducerRecord</span>&lt;&gt;(TOPIC, i % <span class="number">2</span> == <span class="number">0</span> ? <span class="number">0</span> : <span class="number">1</span>, <span class="string">&quot;key&quot;</span> + i,<span class="string">&quot;message&quot;</span> + i);</span><br><span class="line">            <span class="type">RecordMetadata</span> <span class="variable">metadata</span> <span class="operator">=</span> kafkaProducer.send(rec).get();</span><br><span class="line">            System.out.println(<span class="string">&quot;同步方式发送消息结果: &quot;</span> + <span class="string">&quot;topic-&quot;</span> + metadata.topic() + <span class="string">&quot;message-&quot;</span> + i + <span class="string">&quot; partition-&quot;</span> +</span><br><span class="line">                    metadata.partition() + <span class="string">&quot; offset-&quot;</span> + metadata.offset() + <span class="string">&quot;time: &quot;</span> + CommonUtils.formatTime(<span class="keyword">new</span> <span class="title class_">Date</span>()));</span><br><span class="line">            Thread.sleep(<span class="number">10000</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        kafkaProducer.close();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>消费者代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ConsumerFactory</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">startDelayConsumer</span><span class="params">(String topic, String consumerGroup, String clientId, Long delayMills)</span> <span class="keyword">throws</span> InterruptedException &#123;</span><br><span class="line">        delayRun(topic, consumerGroup, delayMills, clientId);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">delayRun</span><span class="params">(String topic, String consumerGroup, Long delayMills, String clientId)</span> <span class="keyword">throws</span> InterruptedException &#123;</span><br><span class="line">        <span class="type">Properties</span> <span class="variable">properties</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Properties</span>();</span><br><span class="line">        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, <span class="string">&quot;127.0.0.1:9093,127.0.0.1:9094,127.0.0.1:9092&quot;</span>);</span><br><span class="line">        properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, <span class="literal">false</span>);</span><br><span class="line">        properties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, <span class="number">1</span>);</span><br><span class="line">        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());</span><br><span class="line">        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());</span><br><span class="line">        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, <span class="string">&quot;earliest&quot;</span>);</span><br><span class="line">        properties.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, <span class="number">5000</span>);</span><br><span class="line">        properties.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);</span><br><span class="line">        <span class="comment">// 消费者组</span></span><br><span class="line">        properties.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroup);</span><br><span class="line">        KafkaConsumer&lt;String, String&gt; kafkaConsumer = <span class="keyword">new</span> <span class="title class_">KafkaConsumer</span>&lt;&gt;(properties);</span><br><span class="line">        List&lt;String&gt; TOPIC_LIST = Collections.singletonList(topic);</span><br><span class="line">        kafkaConsumer.subscribe(TOPIC_LIST);</span><br><span class="line">        <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">            ConsumerRecords&lt;String, String&gt; consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(<span class="number">2</span>));</span><br><span class="line">            <span class="keyword">for</span> (ConsumerRecord&lt;String, String&gt; record : consumerRecords) &#123;</span><br><span class="line">                <span class="type">TopicPartition</span> <span class="variable">topicPartition</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">TopicPartition</span>(topic, record.partition());</span><br><span class="line">                <span class="type">Long</span> <span class="variable">now</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Date</span>().getTime();</span><br><span class="line">                <span class="type">Long</span> <span class="variable">alreadyDelayTime</span> <span class="operator">=</span> now - record.timestamp();</span><br><span class="line">                <span class="type">Long</span> <span class="variable">leftDelayTime</span> <span class="operator">=</span> delayMills - alreadyDelayTime;</span><br><span class="line">                <span class="keyword">if</span> (alreadyDelayTime &lt; delayMills) &#123;</span><br><span class="line">                    <span class="comment">// 先 pause，防止断连</span></span><br><span class="line">                    kafkaConsumer.pause(Collections.singletonList(topicPartition));</span><br><span class="line">                    kafkaConsumer.seek(topicPartition, record.offset());</span><br><span class="line">                    Thread.sleep(leftDelayTime);</span><br><span class="line">                    kafkaConsumer.resume(Collections.singletonList(topicPartition));</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    handle(record);</span><br><span class="line">                    kafkaConsumer.commitSync();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> Integer <span class="title function_">handle</span><span class="params">(ConsumerRecord&lt;String, String&gt; record)</span> &#123;</span><br><span class="line">        System.out.printf(<span class="string">&quot;handle record: partition %s - message %s - sendTime %s - receiptTime %s - delayTime %s\n&quot;</span>,</span><br><span class="line">                record.partition(), record.value(),</span><br><span class="line">                CommonUtils.formatTime(record.timestamp()),</span><br><span class="line">                CommonUtils.formatTime(<span class="keyword">new</span> <span class="title class_">Date</span>()), <span class="keyword">new</span> <span class="title class_">Date</span>().getTime() - record.timestamp());</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>运行结果如下</p>
+<figure>
+<img src="/images/kafka/image-20230627172859178.png" alt="image-20230627172859178">
+<figcaption aria-hidden="true">image-20230627172859178</figcaption>
+</figure>
+<p>可以看到，在分区1中的消息，接收时间 = 发送时间 +
+20s，但是分区0中的消息，延时超过了20s</p>
+<p>这是因为代码中 resume
+到了固定的分区，导致无法切换分区；即使手动resume到其他分区，也无法同时对多个分区延时消费，这是因为在一个分区内是有序的，但是分区之间是无序的，单线程在当前分区等待时，其他分区的消息可能已经过时了，所以需要用多线程的方式。</p>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/hongdada/p/16922111.html">Kafka
+延时队列，重试队列，死信队列</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/feiying0canglang/article/details/121372275">Kafka--延迟队列--使用/实现/原理</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.it1352.com/2548072.html">Kafka 的
+session.timeout.ms 和 max.poll.interval.ms 之间的差异 &gt;=
+0.10.1</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_41889508/article/details/130259348">springboot
+kafka 实现延时队列</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/bd19445fed7d">kafka
+commit机制以及问题</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kafka/" rel="tag"># kafka</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/27/kafka/kafka-theory/" rel="prev" title="kafka 运行机制">
+      <i class="fa fa-chevron-left"></i> kafka 运行机制
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/07/07/austrial-migrate-survey/" rel="next" title="澳洲技术移民调研">
+      澳洲技术移民调研 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BB%B6%E6%97%B6%E5%8F%91%E9%80%81"><span class="nav-number">1.</span> <span class="nav-text">延时发送</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BB%B6%E6%97%B6%E6%B6%88%E8%B4%B9"><span class="nav-number">2.</span> <span class="nav-text">延时消费</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BB%B6%E6%97%B6%E7%9B%91%E6%8E%A7%E6%9C%8D%E5%8A%A1%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1"><span class="nav-number">3.</span> <span class="nav-text">延时监控服务如何设计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '06dbe5a003fd987ed4192e0223bf702a',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

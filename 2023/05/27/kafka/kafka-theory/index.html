@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍 kafka 相关运行机制，主要包括：  分区策略 消息压缩算法 Kafka 通信方式 消费者组相关机制">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka 运行机制">
+<meta property="og:url" content="http://shaun2016.github.io/2023/05/27/kafka/kafka-theory/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍 kafka 相关运行机制，主要包括：  分区策略 消息压缩算法 Kafka 通信方式 消费者组相关机制">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/kafka/offset.drawio.png">
+<meta property="article:published_time" content="2023-05-27T12:57:34.000Z">
+<meta property="article:modified_time" content="2023-06-18T16:30:14.156Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="kafka">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/kafka/offset.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2023/05/27/kafka/kafka-theory/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>kafka 运行机制 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/05/27/kafka/kafka-theory/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          kafka 运行机制
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-27 20:57:34" itemprop="dateCreated datePublished" datetime="2023-05-27T20:57:34+08:00">2023-05-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-06-19 00:30:14" itemprop="dateModified" datetime="2023-06-19T00:30:14+08:00">2023-06-19</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍 kafka 相关运行机制，主要包括：</p>
+<ol type="1">
+<li>分区策略</li>
+<li>消息压缩算法</li>
+<li>Kafka 通信方式</li>
+<li>消费者组相关机制</li>
+</ol>
+</blockquote>
+<span id="more"></span>
+<h2 id="分区策略">分区策略</h2>
+<p>kafka的分区机制提供了负载均衡的能力，实现了系统的可伸缩性</p>
+<p>我们希望生产者将消息均匀的分发到每个分区中，分区策略有：</p>
+<ul>
+<li>轮询策略</li>
+<li>随机策略</li>
+<li>按消息键保序策略</li>
+</ul>
+<h2 id="消息压缩算法">消息压缩算法</h2>
+<p>希望以极小的CPU开销带来更少的磁盘占用或更少的网络I/O传输</p>
+<p>Q1：什么时候进行压缩？</p>
+<p>A1：生产者 或 Broker</p>
+<blockquote>
+<p>Broker 压缩的情况：</p>
+<ol type="1">
+<li>Producer压缩消息后，发送到Broker，如果Broker指定了压缩算法，且与Producer的算法不同，则会解压后重新压缩；</li>
+<li>Broker 端发生了消息格式的转换，比如 Broker
+发现有旧版本的消息，需要解压转换为新版本格式，再压缩</li>
+</ol>
+<p>Broker
+压缩会影响性能，应该尽量避免由于压缩算法设置不一致，或消息版本不一致导致的重复压缩</p>
+</blockquote>
+<p>Q2：什么时候进行解压？</p>
+<p>A2：Broker 或 消费者</p>
+<blockquote>
+<p>除了上面提到的 Broker 压缩前需要解压外，每个压缩过的消息在 Broker
+端都会解压，对消息执行各种校验；</p>
+<p>Think：Broker
+具体校验哪些方面呢，能否可以在不解压的情况下校验呢？</p>
+</blockquote>
+<p>有哪些压缩算法？</p>
+<ul>
+<li>GZIP</li>
+<li>Snappy</li>
+<li>LZ4</li>
+<li>Zstandard（zstd）</li>
+</ul>
+<p>四种压缩算法的比较：</p>
+<ul>
+<li>压缩比：zstd &gt; lz4 &gt; gzip &gt; snappy</li>
+<li>吞吐量：lz4 &gt; snappy &gt; zstd 和 gzip</li>
+</ul>
+<p>即：如果希望节省网络带宽，则使用 zstd；如果追求速度，则使用lz4</p>
+<h2 id="如何防止-kafka-消息丢失">如何防止 kafka 消息丢失</h2>
+<p>可能导致消息丢失的场景：</p>
+<ol type="1">
+<li>生产者端丢失：发送过程中由于网络问题、消息不合格等原因，且生产者未感知</li>
+<li>消费者端丢失：先更新offset，后消费消息，如果更新offset后消费消息的线程中断，则它负责的消息没有处理，但是
+offset 却更新了</li>
+</ol>
+<p>对于上述两种场景的解决方案是：</p>
+<ol type="1">
+<li>生产者端：使用带有回调的 send
+方法，在回调中发现失败进行重试等处理</li>
+<li>消费者端：先消费，成功后再提交更新 offset</li>
+</ol>
+<p>防止消息丢失的最佳实践：</p>
+<ol type="1">
+<li>【生产者端】使用 producer.send(msg, callback)</li>
+<li>【生产者端】设置 acks = all，表示全部 broker
+都收到消息，才认为是已提交</li>
+<li>【生产者端】设置 retries 为一个较大值，自动重试消息发送</li>
+<li>【Broker端】unclean.leader.election.enable =
+false，不允许一个落后原先 leader 太多的 broker 成为新的 leader</li>
+<li>【Broker端】设置 replication.factor &gt;= 3，将消息多保存几份</li>
+<li>【Broker端】设置 min.insync.replicas &gt; 1
+消息至少要被写入多少个副本才算是已提交</li>
+<li>【Broker端】确保 replication.factor &gt; min.insync.replicas，推荐
+replication.factor = min.insync.replicas + 1</li>
+<li>【消费者端】消费成功后再提交</li>
+</ol>
+<h2 id="kafka-的通信方式">Kafka 的通信方式</h2>
+<h3 id="生产者是如何和broker通信的">生产者是如何和Broker通信的</h3>
+<p>通信协议：TCP</p>
+<p>什么时候建立连接：</p>
+<ol type="1">
+<li>创建 producer 实例时，生产者应用会在后台创建一个线程，该线程会与
+bootstrap.server 参数中指定的所有 Broker 创建连接</li>
+<li>Producer 与 bootstrap.server 的 Broker 请求 kafka 集群
+Metadata，拿到集群的全部 Broker 后，Producer 会与未建立连接的 Broker
+建议连接，这样 Producer 就与集群中所有 Broker 都建立了连接</li>
+<li>Producer 在发送消息时，如果发现与目标 Broker
+未建立连接，会创建连接</li>
+</ol>
+<h2 id="消费者组">消费者组</h2>
+<h3 id="消费者组的作用">消费者组的作用</h3>
+<p>使消费者的水平扩展，提高消费能力</p>
+<h3 id="位移是如何管理的">位移是如何管理的</h3>
+<p>不同的版本位移的管理是不同的</p>
+<p>2.8.0 之前：zookeeper</p>
+<p>2.8.0 之后：kafka 内部主题 <code>__consumer_offsets</code></p>
+<p><strong>位置放在 zookeeper 中存在的问题</strong>：zookeeper
+不适合频繁的写更新，大吞吐量的写操作会极大地拖慢 zooKeeper
+集群的性能</p>
+<p><strong>位移主题：</strong>保存消费者的位移信息，需要保证持久性和高吞吐量</p>
+<p><strong>consumer 如何提交位移：</strong></p>
+<ul>
+<li><p>自动提交</p>
+<p><strong>参数</strong>：</p>
+<p>enable.auto.commit = true</p>
+<p>auto.commit.interval.ms = 5000</p>
+<p><strong>执行流程</strong>：周期性的 poll（拉取）消息前，都提交上次
+poll 的位移</p>
+<p><strong>优缺点：</strong>可以保证消息不丢失，但可能重复消费</p>
+<p><strong>为什么会重复消费：</strong>在一个周期内发生重平衡，重平衡后再开始消费，由于本周期的位移没有提交，拿到的位移是本周期前的，导致重平衡前本周期消费的消息被重复消费</p></li>
+<li><p>手动-同步提交</p>
+<p>kafkaConsumer#commitSync()</p>
+<p><strong>优缺点：</strong>灵活可控，提交失败可以自动重试，但提交过程中会阻塞消费者进程，也有重复消费的问题（已消费未提交位移时重启、重平衡）</p></li>
+<li><p>手动-异步提交</p>
+<p>kafkaConsumer#commitAsync()</p>
+<p><strong>优缺点：</strong>灵活，异步提交，不阻塞消费进程，缺点是发现提交失败，也无法重试，因为重试提交的也不是最新的位移，只会导致重复消费</p></li>
+</ul>
+<p>综上，无论用哪种提交位移的方式，都会产生重复消费，所以需要消费者自己处理重复消费，如天然是幂等的，或去重</p>
+<h3 id="消费者重平衡">消费者重平衡</h3>
+<p>何时发生重平衡：</p>
+<ul>
+<li>消费者组成员数量发生变更</li>
+<li>订阅主题数发生变更</li>
+<li>订阅主题的分区数发生变更</li>
+</ul>
+<p>重平衡的影响：在重平衡过程中，组内所有实例都不能消费任何消息，影响了消费者的
+TPS</p>
+<h3 id="消费者线程">消费者线程</h3>
+<p>从 0.10.1.0 版本开始，kafka consumer
+采用了用户主线程和心跳线程的双线程设计，是为了将心跳线程与主线程的 poll
+方法分开，防止因消费时间过长无法及时 poll 导致的重平衡</p>
+<p>在单节点上，消费线程是单线程。如果希望多线程消费，可以采用下面几种方案：</p>
+<ul>
+<li>方案一：启动多个消费者线程，即拉取消息又处理消息</li>
+<li>方案二：单（多）消费者线程负责拉取消息，多线程处理</li>
+</ul>
+<p>方案一就是在一个节点上启动了多个消费者，和启动多个消费者节点是一样的，所以启动的消费者数受限于主题分区数，如果启动了大于分区数的消费者，那么多启动的线程也是空闲的</p>
+<p>方案二将拉取消息与处理消息分开，如果拉取消息是多线程，与方案一相同，多线程处理消息可以提高消费速度，但是不能保证消息有序消费；多线程消费需要手动提交位移，需要感知到当前
+poll 的消息全部处理完</p>
+<h3 id="位移管理">位移管理</h3>
+<p>消费者接入到一个 partition 后从哪个位置开始消费，与
+<code>auto.offset.reset</code> 有关：</p>
+<ul>
+<li>earliest：
+当各分区下有已提交的offset时，从提交的offset开始消费；无提交的offset时，从头开始消费</li>
+<li>latest：
+当各分区下有已提交的offset时，从提交的offset开始消费；无提交的offset时，消费新产生的该分区下的数据</li>
+<li>nearlist：
+当各分区下有已提交的offset时，从提交的offset开始消费；如果小于
+beginingOffset 从 earliest 开始，如果超过 endOffset 从 latest 开始</li>
+</ul>
+<figure>
+<img src="/images/kafka/offset.drawio.png" alt="offset.drawio">
+<figcaption aria-hidden="true">offset.drawio</figcaption>
+</figure>
+<h3 id="消费者负载不均衡">消费者负载不均衡</h3>
+<h2 id="消费模式">消费模式</h2>
+<h3 id="顺序消费">顺序消费</h3>
+<p>通过分配规则，对消息 key 计算出对应的 partition，发送到指定的
+partition 中</p>
+<p>Q：什么情况会破坏顺序消费？</p>
+<p>A：批量消费，没有去重，发生 Rebalance 时，可能破坏顺序</p>
+<p>比如批量 poll 了一批消息 [a1, a2, a3, a4, a5]，已经消费到
+a4，还没有提交位移，这时发生了 rebalance，则 rebalance 后会重新消费 a1,
+a2, a3, a4（不去重的情况），这时发生了先消费 a3，后消费 a1 的情况</p>
+<h3 id="延时消费">延时消费</h3>
+<p>见延时消费</p>
+<h2 id="集群设置">集群设置</h2>
+<h3 id="broker-负载均衡">broker 负载均衡</h3>
+<h3 id="consumer-负载均衡">consumer 负载均衡</h3>
+<h4 id="负载均衡策略rebalance-策略">负载均衡策略（Rebalance 策略）</h4>
+<ul>
+<li><p>Range 算法</p>
+<ol type="1">
+<li>对每个 topic 里面的分区按序号排序(P0, P1,
+P2,...)，对消费者按字母顺序排序（C0, C1, C2, ...）</li>
+<li>对每个 topic 都执行操作：将分片依次分配给消费者</li>
+</ol>
+<p>存在的问题：多个
+topic，且分区大于消费者个数时，排序靠前的消费者会分配到更多的分区，比如有
+N 个 topic，每个 topic 的分区数都比消费者个数多一个，则 C0
+比其他消费者多分配 N 个分区</p></li>
+<li><p>RoundRobin 算法</p>
+<ol type="1">
+<li>遍历主题列表，从每个主题获取其所有分区的列表，组成分区集合 P</li>
+<li>对 P
+中分区列表进行排序，首先按照主题名称，然后按照分区编号进行排序</li>
+<li>对消费者实例进行排序，保证分配过程中的顺序是确定的</li>
+<li>系统遍历P中的分区列表，从第一个消费者开始，依次分配一个分区，直至分配完列表中的所有分区</li>
+</ol>
+<p>存在问题：</p></li>
+<li><p>Sticky 算法</p>
+<p>目标：</p>
+<ol type="1">
+<li>分区的分配要尽可能的均匀，分配给消费者者的主题分区数最多相差一个</li>
+<li>分区的分配尽可能的与上次分配的保持相同</li>
+</ol>
+<p>步骤：</p>
+<ol type="1">
+<li>按照 RoundRobin 的方式分配</li>
+<li>发生重平衡时，将离线消费者的分区分配给在线消费者，保证分区差不超过1个</li>
+</ol></li>
+</ul>
+<h4 id="消费者组不均衡的场景">消费者组不均衡的场景</h4>
+<ul>
+<li>场景1：消费者组订阅了多个topic，而 topic
+之间流量差异很大，默认的分配策略是不考虑 topic
+具体流量的，只会按分区数分配</li>
+<li>场景2：有一些内置 topic，如 RETRY_TOPIC，这些内置 topic
+平时流量很少，但也参与分配；这就可能导致一些实例上的消费者只分配了内置
+topic 的分区，而一些实例上分配了正常 topic
+的分区，导致负载不均（与场景1其实是同一个问题）</li>
+</ul>
+<p>解决方案：</p>
+<ul>
+<li>场景1：给不同 topic 设置权重，按照权重分配</li>
+<li>场景2：给内置 topic 设置权重为0</li>
+</ul>
+<h4 id="服务实例分配分区不均衡的场景">服务实例分配分区不均衡的场景</h4>
+<p>由于分区分配策略是在消费者组内部的，不会考虑其他消费者组已分配的分区，当服务实例在多个消费者组中，容易出现不均衡的现象，下面是可能发生的场景：</p>
+<ul>
+<li><p>场景1：使用 RoundRobin
+策略，3个实例（A，B，C），在2个消费组内，订阅2个Topic，各4个分区（P0-0,
+P0-1, P0-2, P0-3, P1-1, P1-2, P1-3, P1-4）</p>
+<p>分配后的结果为：A分配了P0-0,P0-3,P1-1, P1-4，
+B分配了P0-1,P1-2，C分配了P0-2,P1-3，可以发现A比B，C多分配了两个分区，如果在更多的消费组中，则这个问题会更严重</p></li>
+<li><p>场景2：使用 Sticky 策略，3个实例（A，B，C）同上</p>
+<p>先看一个消费组内，在启动服务的过程中，由于分配策略和服务启动先后有关，则一定有一个实例多分配了一个，在N个消费组的情况下，这个实例会被多分配N个分区（因为不同消费组的分配策略是一致的）</p></li>
+<li><p>场景3：使用任何一种策略，10个实例，在30个消费者组中，30个topic，每个topic4个分区</p>
+<p>分配后，肯定存在4个实例，被分配了30个分区，6个实例，分配0个分区</p></li>
+</ul>
+<h5 id="实验验证">实验验证</h5>
+<p>只验证场景1,2，场景3同理</p>
+<p>3个Topic，每个 topic 4个分区，3个消费者组，每组3个消费者，client.id
+依次是 c1, c2, c3</p>
+<p>使用 RoundRobin 和 Sticky 策略，观察分区分配的结果</p>
+<p>RoundRobin策略</p>
+<table>
+<colgroup>
+<col style="width: 15%">
+<col style="width: 56%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>分配结果</th>
+<th>分区统计</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个消费者上线</td>
+<td>所有分区都是C1</td>
+<td>C1：12个</td>
+</tr>
+<tr class="even">
+<td>第二个消费者上线</td>
+<td>T0-P0,P2：C1<br>T0-P1,P3：C2<br>T1-P0,P2：C1<br>T1-P1,P3：C2<br>T2-P0,P2：C1<br>T2-P1,P3：C2</td>
+<td>C1：6个<br>C2：6个</td>
+</tr>
+<tr class="odd">
+<td>第三个消费者上线</td>
+<td>T0-P0,P3：C1<br>T0-P1：C2<br>T0-P2：C3<br>T1-P0,P3：C1<br>T1-P1：C2<br>T1-P2：C3<br>T2-P0,P3：C1<br>T2-P1：C2<br>T2-P2：C3</td>
+<td>C1：6个<br>C2：3个<br>C3：3个</td>
+</tr>
+</tbody>
+</table>
+<p>Sticky 策略</p>
+<table>
+<colgroup>
+<col style="width: 15%">
+<col style="width: 56%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>分配结果</th>
+<th>分区统计</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个消费者上线</td>
+<td>所有分区都是C1</td>
+<td>C1：12个</td>
+</tr>
+<tr class="even">
+<td>第二个消费者上线</td>
+<td>T0-P0,P1：C1<br>T0-P2,P3：C2<br>T1-P0,P1：C1<br>T1-P2,P3：C2<br>T2-P0,P1：C1<br>T2-P2,P3：C2</td>
+<td>C1：6个<br>C2：6个</td>
+</tr>
+<tr class="odd">
+<td>第三个消费者上线</td>
+<td>T0-P0,P1：C1<br>T0-P2：C2<br>T0-P3：C3<br>T1-P0,P1：C1<br>T1-P2：C2<br>T1-P3：C3<br>T2-P0,P1：C1<br>T2-P2：C2<br>T2-P3：C3</td>
+<td>C1：6个<br>C2：3个<br>C3：3个</td>
+</tr>
+</tbody>
+</table>
+<p>可以发现，在RoundRobin策略和Sticky策略中，C1比C2,C3多分配3个分区</p>
+<h4 id="解决方案">解决方案</h4>
+<p>上面两个场景的本质是相同的，都是多消费者组分配分区执行结果一致，导致部分实例被多分配</p>
+<p>场景1：不同消费组对消费者排序后，机器的顺序是相同的，排序的算法对
+client.id 的 hashCode 进行排序的，所以只要让同一实例上不同组内的消费者
+client.id 不同，就可以避免这个问题</p>
+<p>场景2：Sticky分配策略与启动顺序有关，且消费者进程和服务启动是同步的，解决方案是将消费者进程的启动和实例的启动解耦，通过随机睡眠的方式，利用消费者进程启动的随机性，避免这个问题</p>
+<p>场景3：无论使用哪种策略，都要加入随机睡眠</p>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/wypblog/article/details/108613306">如何为Kafka集群选择合适的Topics/Partitions数量</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/439936732">kafka的 groupid 与
+auto.offset.reset</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/49ed596e9986">Kafka
+Note（六）负载均衡机制</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/lzb348110175/article/details/100773487">kafka
+分区分配策略</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.zhihu.com/question/446316747/answer/2213525748">kafka
+的几种分配策略</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kafka/" rel="tag"># kafka</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/04/02/java/annotation/" rel="prev" title="Java 注解原理">
+      <i class="fa fa-chevron-left"></i> Java 注解原理
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/10/kafka/kafka-delay-queue/" rel="next" title="kafka 延时消息">
+      kafka 延时消息 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E5%8C%BA%E7%AD%96%E7%95%A5"><span class="nav-number">1.</span> <span class="nav-text">分区策略</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E5%8E%8B%E7%BC%A9%E7%AE%97%E6%B3%95"><span class="nav-number">2.</span> <span class="nav-text">消息压缩算法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E9%98%B2%E6%AD%A2-kafka-%E6%B6%88%E6%81%AF%E4%B8%A2%E5%A4%B1"><span class="nav-number">3.</span> <span class="nav-text">如何防止 kafka 消息丢失</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#kafka-%E7%9A%84%E9%80%9A%E4%BF%A1%E6%96%B9%E5%BC%8F"><span class="nav-number">4.</span> <span class="nav-text">Kafka 的通信方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85%E6%98%AF%E5%A6%82%E4%BD%95%E5%92%8Cbroker%E9%80%9A%E4%BF%A1%E7%9A%84"><span class="nav-number">4.1.</span> <span class="nav-text">生产者是如何和Broker通信的</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84"><span class="nav-number">5.</span> <span class="nav-text">消费者组</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="nav-number">5.1.</span> <span class="nav-text">消费者组的作用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%8D%E7%A7%BB%E6%98%AF%E5%A6%82%E4%BD%95%E7%AE%A1%E7%90%86%E7%9A%84"><span class="nav-number">5.2.</span> <span class="nav-text">位移是如何管理的</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E9%87%8D%E5%B9%B3%E8%A1%A1"><span class="nav-number">5.3.</span> <span class="nav-text">消费者重平衡</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E7%BA%BF%E7%A8%8B"><span class="nav-number">5.4.</span> <span class="nav-text">消费者线程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%8D%E7%A7%BB%E7%AE%A1%E7%90%86"><span class="nav-number">5.5.</span> <span class="nav-text">位移管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E8%B4%9F%E8%BD%BD%E4%B8%8D%E5%9D%87%E8%A1%A1"><span class="nav-number">5.6.</span> <span class="nav-text">消费者负载不均衡</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E6%A8%A1%E5%BC%8F"><span class="nav-number">6.</span> <span class="nav-text">消费模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%BA%E5%BA%8F%E6%B6%88%E8%B4%B9"><span class="nav-number">6.1.</span> <span class="nav-text">顺序消费</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BB%B6%E6%97%B6%E6%B6%88%E8%B4%B9"><span class="nav-number">6.2.</span> <span class="nav-text">延时消费</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E8%AE%BE%E7%BD%AE"><span class="nav-number">7.</span> <span class="nav-text">集群设置</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#broker-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="nav-number">7.1.</span> <span class="nav-text">broker 负载均衡</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#consumer-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="nav-number">7.2.</span> <span class="nav-text">consumer 负载均衡</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%AD%96%E7%95%A5rebalance-%E7%AD%96%E7%95%A5"><span class="nav-number">7.2.1.</span> <span class="nav-text">负载均衡策略（Rebalance 策略）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84%E4%B8%8D%E5%9D%87%E8%A1%A1%E7%9A%84%E5%9C%BA%E6%99%AF"><span class="nav-number">7.2.2.</span> <span class="nav-text">消费者组不均衡的场景</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%AE%9E%E4%BE%8B%E5%88%86%E9%85%8D%E5%88%86%E5%8C%BA%E4%B8%8D%E5%9D%87%E8%A1%A1%E7%9A%84%E5%9C%BA%E6%99%AF"><span class="nav-number">7.2.3.</span> <span class="nav-text">服务实例分配分区不均衡的场景</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C%E9%AA%8C%E8%AF%81"><span class="nav-number">7.2.3.1.</span> <span class="nav-text">实验验证</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">7.2.4.</span> <span class="nav-text">解决方案</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">8.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '09c8d51c935b5cd41873e7039262e2f7',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

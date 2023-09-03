@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍 Docker 镜像构建中的注意事项">
+<meta property="og:type" content="article">
+<meta property="og:title" content="docker 镜像构建篇">
+<meta property="og:url" content="http://shaun2016.github.io/2023/01/26/docker/docker-image-build/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍 Docker 镜像构建中的注意事项">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/docker/docker_layers.drawio.png">
+<meta property="article:published_time" content="2023-01-26T10:40:48.000Z">
+<meta property="article:modified_time" content="2023-01-26T11:31:21.164Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="docker">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/docker/docker_layers.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2023/01/26/docker/docker-image-build/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>docker 镜像构建篇 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/01/26/docker/docker-image-build/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          docker 镜像构建篇
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-01-26 18:40:48 / 修改时间：19:31:21" itemprop="dateCreated datePublished" datetime="2023-01-26T18:40:48+08:00">2023-01-26</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍 Docker 镜像构建中的注意事项</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="docker-的使用场景">Docker 的使用场景</h2>
+<p><strong>构建运行环境</strong></p>
+<p>一个程序的运行环境往往很复杂，如深度学习程序的运行环境，可能需要指定版本的操作系统，CUDA，cuDNN，gcc，python，各种依赖等等，自己从头搭建一个运行环境是很麻烦的，这时有人将运行环境构建成
+base 镜像，然后基于 base 镜像运行程序，省去了自己搭建环境的过程</p>
+<p>比如想使用 paddle
+的训练、源码编译，直接运行对应的环境镜像，将代码挂载进去，就可以直接训练和编译了</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run --name paddle -itd -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.4.1 /bin/bash</span><br></pre></td></tr></table></figure>
+<p>不过要注意，base镜像使用的 kernal
+指令还是宿主机提供的，所以如果要求的操作系统是 Linux，而宿主机是
+Mac，即使在 Mac 上运行了 centos 或 ubantu 的 base
+镜像，也是无法运行的</p>
+<p><strong>临时的文件下载服务</strong></p>
+<p>在公司远程服务器上需要下载文件时，出于安全考虑，不能通过 xftp
+等软件连接，这时想从服务器上下载一个文件，就比较麻烦了，这时可以用
+docker 创建一个 httpserver 容器，临时开通一个 http 服务</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run -itd --name my-apache-app -p 8080:80 -v <span class="string">&quot;<span class="variable">$PWD</span>&quot;</span>:/usr/local/apache2/htdocs/ httpd:2.4</span><br></pre></td></tr></table></figure>
+<p>下载完文件记得关闭这个容器，防止产生安全问题</p>
+<p><strong>服务部署</strong></p>
+<p>k8s 管理 docker 容器完成服务部署、调度、扩缩容等</p>
+<h2 id="镜像">镜像</h2>
+<h3 id="镜像的分层结构">镜像的分层结构</h3>
+<figure>
+<img src="/images/docker/docker_layers.drawio.png" alt="docker_layers.drawio">
+<figcaption aria-hidden="true">docker_layers.drawio</figcaption>
+</figure>
+<p>镜像分层最大的一个好处就是<strong>共享资源</strong></p>
+<p>比如：有多个镜像都从相同的 base
+镜像构建而来，那么宿主机只需在磁盘上保存一份 base
+镜像；同时内存中也只需加载一份 base 镜像，就可以为所有容器服务了</p>
+<blockquote>
+<p>Q：如果多个容器共享一份基础镜像，当某个容器修改了基础镜像的内容，比如
+/etc 下的文件，这时其他容器的 /etc 是否也会被修改？</p>
+<p>A：不会的，修改会被限制在单个容器内，这就是容器的<strong>写时复制</strong></p>
+</blockquote>
+<h4 id="镜像是如何被多个容器共享的">镜像是如何被多个容器共享的</h4>
+<p>当容器启动时，一个新的可写层被加载到镜像顶部，称为容器层，容器层之下的叫做镜像层</p>
+<p><strong>只有容器层是可写的，容器层下面的所有镜像层都是只读的</strong>，所以对容器文件的改动都只会发生在容器层中</p>
+<blockquote>
+<p>镜像层数量可能会很多，所有镜像层会联合在一起组成一个统一的文件系统。如果不同层中有一个相同路径的文件，比如
+/etc，上层的 /etc 会覆盖下层的 /etc，也就是说用户只能访问到上层中的文件
+/etc。在容器层中，用户看到的是一个叠加之后的文件系统</p>
+</blockquote>
+<p><strong>容器层如何变更文件</strong></p>
+<table>
+<colgroup>
+<col style="width: 11%">
+<col style="width: 88%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>操作</th>
+<th>实现</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>添加文件</td>
+<td>新文件被写到容器层</td>
+</tr>
+<tr class="even">
+<td>读取文件</td>
+<td>从上往下依次在各镜像层中查找此文件，找到后，打开并读入内存</td>
+</tr>
+<tr class="odd">
+<td>修改文件</td>
+<td>从上往下依次在各镜像层中查找此文件，找到后，将其复制到容器层，然后修改</td>
+</tr>
+<tr class="even">
+<td>删除文件</td>
+<td>从上往下依次在各镜像层中查找此文件，找到后，会在容器层中记录此删除操作</td>
+</tr>
+</tbody>
+</table>
+<p><strong>写时复制 Copy On Write</strong></p>
+<p>只有当需要修改时才复制一份数据，这种特性被称作 Copy on
+Write。容器层保存的是镜像变化的部分，不会对镜像本身进行任何修改</p>
+<h2 id="dockerfile">Dockerfile</h2>
+<p>部署服务时，需要使用我们自己服务的镜像，就要用到 Dockerfile</p>
+<h3 id="dockerfile-常用指令">Dockerfile 常用指令</h3>
+<table>
+<colgroup>
+<col style="width: 14%">
+<col style="width: 85%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>指令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FROM</td>
+<td>指定 base 镜像</td>
+</tr>
+<tr class="even">
+<td>MAINTAINER</td>
+<td>设置镜像的作者</td>
+</tr>
+<tr class="odd">
+<td>WORKDIR</td>
+<td>为后面的 RUN, CMD, ENTRYPOINT, ADD 或 COPY
+指令设置镜像中的当前工作目录。</td>
+</tr>
+<tr class="even">
+<td>COPY</td>
+<td>将文件从 build context 复制到镜像内</td>
+</tr>
+<tr class="odd">
+<td>ADD</td>
+<td>与 COPY 类似，不同的是，如果 src 是归档文件（tar, zip, tgz, xz
+等），文件会被自动解压</td>
+</tr>
+<tr class="even">
+<td>ENV</td>
+<td>设置环境变量</td>
+</tr>
+<tr class="odd">
+<td>EXPOSE</td>
+<td>指定容器中的进程会监听某个端口</td>
+</tr>
+<tr class="even">
+<td>VOLUME</td>
+<td>将文件或目录声明为 volume</td>
+</tr>
+<tr class="odd">
+<td>RUN</td>
+<td>在容器中运行指定的命令</td>
+</tr>
+<tr class="even">
+<td>CMD</td>
+<td>容器启动时运行指定的命令<br>Dockerfile 中可以有多个 CMD
+指令，但只有最后一个生效<br>CMD 可以被 docker run 之后的参数替换</td>
+</tr>
+<tr class="odd">
+<td>ENTRYPOINT</td>
+<td>设置容器启动时运行的命令。<br>Dockerfile 中可以有多个 ENTRYPOINT
+指令，但只有最后一个生效。CMD 或 docker run 之后的参数会被当做参数传递给
+ENTRYPOINT</td>
+</tr>
+</tbody>
+</table>
+<p>在执行 <code>docker build -t &#123;app&#125;:&#123;version&#125; .</code> 命令末尾的
+<code>.</code> 指明 build context 为当前目录。Docker 默认会从 build
+context 寻找 Dockerfile 文件，也可以通过 <code>-f</code> 指定 Dockerfile
+的位置</p>
+<p>如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> ubuntu</span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> apt-get update</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> apt-get install -y vim</span></span><br><span class="line"><span class="keyword">CMD</span><span class="language-bash"> [<span class="string">&quot;/bin/bash&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+<h3 id="dockerfile-构建过程">Dockerfile 构建过程</h3>
+<blockquote>
+<p>以上面dockerfile内容为例</p>
+</blockquote>
+<ol type="1">
+<li>Docker 将 build context 中的所有文件发送给 Docker daemon</li>
+<li>执行 FROM，下载 base 镜像</li>
+<li>执行 RUN，创建临时容器 A，在临时容器中执行
+<code>apt-get update</code></li>
+<li>执行成功后，将容器 A 保存为临时镜像 B</li>
+<li>通过临时镜像 B，创建临时容器
+C，在临时容器中执行<code>apt-get install -y vim</code></li>
+<li>执行成功后，将容器 C 保存为临时镜像 D</li>
+<li>删除临时容器</li>
+<li>镜像构建成功，最终镜像为镜像D</li>
+</ol>
+<h3 id="dockerfile-的最佳实践">Dockerfile 的最佳实践</h3>
+<h4 id="base-镜像的选择">base 镜像的选择</h4>
+<ol type="1">
+<li>使用固定版本的 base 镜像，不使用 latest 版本</li>
+<li>使用轻量级 alpine 的发行版</li>
+</ol>
+<h4 id="尽量利用镜像层缓冲">尽量利用镜像层缓冲</h4>
+<blockquote>
+<p>在执行 build
+时，每个镜像层都会被缓存下来，当需要构建时，若某一层指令或内容没有发生变更，会直接利用缓存层，提高构建速度</p>
+<p>若某一层的命令或内容发生了变更，意味着后面的所有的镜像层缓存都不可被复用</p>
+</blockquote>
+<blockquote>
+<p>Q：为什么某一层发生变更，后面的镜像层就不能被复用了呢？</p>
+<p>A：先说下 git commit，这个命令用于创建镜像，在用 dockerfile
+构建镜像时，底层是用 git commit
+不断的创建镜像，包括若干临时镜像和一个最终镜像；比如在构建过程中，临时镜像A包括镜像层1-4，那么在执行下一个构建语句时，需要通过镜像A运行容器C，在容器C中执行相应的命令，再将容器C保存为镜像B，这样镜像B就包含了镜像层1-5。所以，如果某一层发生变更，该层对应的临时镜像以及后面的临时镜像都变了，无法复用</p>
+<p>所以这个问题是带有欺骗性的，看起来是镜像层的复用，实际上是临时镜像的复用，在构建过程中，只有临时镜像被保存，没有镜像层被保存</p>
+</blockquote>
+<ol start="3" type="1">
+<li>将 dockerfile
+涉及到的文件或内容，从最少变更步骤到最频繁变更进行排序，不频繁的放在上面，来提高缓存层复用率，提高镜像的构建速度</li>
+</ol>
+<blockquote>
+<p>例如，有些 dockerfile
+需要将项目文件拷贝到镜像中，这些文件是频繁变更的，要尽量往后放</p>
+</blockquote>
+<h4 id="镜像层尽量少">镜像层尽量少</h4>
+<blockquote>
+<p>dockerfile中的每条指定都会创建一个镜像层（待验证），有些相同类型的操作，如果分开写，会导致生成的镜像文件存在多个镜像层中</p>
+</blockquote>
+<ol start="4" type="1">
+<li>将同类型的操作用 <code>&amp;&amp;</code> 和 <code>\</code>
+来结合，减少镜像层，便于维护</li>
+</ol>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ENV</span> GO111MODULE=on \</span><br><span class="line">    GOPROXY=<span class="string">&quot;https://goproxy.io&quot;</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> yum makecache &amp;&amp; \</span></span><br><span class="line"><span class="language-bash">    yum -y install nginx mysql</span></span><br></pre></td></tr></table></figure>
+<h4 id="使用-.dockerignore-文件">使用 .dockerignore 文件</h4>
+<blockquote>
+<p>在构建镜像时，Docker Client 会将 build context 中的所有文件发送给
+Docker daemon，如果 build context
+下的文件体积很大，会导致编译时间很长甚至失败，还可能导致镜像体积过大</p>
+<p>本人遇到的一个项目，由于上线流水线不健全，需要本地打镜像，当时本地日志打在项目目录下，且缺少
+.dockerignore 文件，每次构建镜像时，都会将日志文件发送给 Docker
+daemon，还会 COPY 到镜像内，不仅编译时间长，且镜像体积大</p>
+<p>如果通过流水线从代码库拉代码，正常情况下是不会有本地产物的，不过也可以通过
+.dockeringore 文件去掉一些镜像不需要的文件，加快构建速度</p>
+</blockquote>
+<ol start="5" type="1">
+<li>在根目录下，可使用 .dockerfileignore
+文件，排除掉无需加入的目录或文件，其编写的方式和 .gitignore
+相同，加快构建速度</li>
+</ol>
+<h4 id="安全性">安全性</h4>
+<ol start="6" type="1">
+<li>容器中使用非 root 用户启动应用</li>
+</ol>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> node:<span class="number">17.0</span>.<span class="number">1</span>-alpine</span><br><span class="line">...</span><br><span class="line"><span class="keyword">USER</span> work</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+<h4 id="其他方面">其他方面</h4>
+<ol start="7" type="1">
+<li>使用 <code>RUN</code> 指令安装依赖和软件包</li>
+<li>不要使用 <code>RUN apt-get upgrade</code></li>
+<li>使用 <code>RUN apt-get update &amp;&amp; apt-get install -y</code>
+不要分成两个 RUN</li>
+<li>清理掉 apt 缓存 <code>rm -rf /var/lib/apt/lists/*</code>
+减少镜像体积</li>
+<li>用于安装依赖的文件单独 COPY，如 requirements.txt</li>
+</ol>
+<p>下面是一个完整的栗子</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> python:alpine3.<span class="number">17</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> apt-get update &amp;&amp; apt-get install -y \</span></span><br><span class="line"><span class="language-bash">    aufs-tools \</span></span><br><span class="line"><span class="language-bash">    automake \</span></span><br><span class="line"><span class="language-bash">    build-essential \</span></span><br><span class="line"><span class="language-bash">    curl \</span></span><br><span class="line"><span class="language-bash">    dpkg-sig \</span></span><br><span class="line"><span class="language-bash">    libcap-dev \</span></span><br><span class="line"><span class="language-bash">    libsqlite3-dev \</span></span><br><span class="line"><span class="language-bash">    mercurial \</span></span><br><span class="line"><span class="language-bash">    reprepro \</span></span><br><span class="line"><span class="language-bash">    ruby1.9.1 \</span></span><br><span class="line"><span class="language-bash">    ruby1.9.1-dev \</span></span><br><span class="line"><span class="language-bash">    s3cmd=1.1.* \</span></span><br><span class="line"><span class="language-bash">    &amp;&amp; <span class="built_in">rm</span> -rf /var/lib/apt/lists/*</span></span><br><span class="line"><span class="keyword">USER</span> work</span><br><span class="line">WOKRDIR /home/work</span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> requirements.txt .</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> pip install --requirement requirements.txt</span></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> app .</span></span><br><span class="line"><span class="keyword">EXPOSE</span> <span class="number">8000</span></span><br><span class="line"><span class="keyword">CMD</span><span class="language-bash"> [<span class="string">&quot;python&quot;</span>, <span class="string">&quot;manage.py&quot;</span>, <span class="string">&quot;runserver&quot;</span>, <span class="string">&quot;0.0.0.0:8000&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_44966641/article/details/124212367">Dockerfile最佳实践</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.51cto.com/windchasereric/4796157">dockerfile
+最佳实践</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/docker/" rel="tag"># docker</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/07/jvm/jvm-class-loader/" rel="prev" title="jvm 类加载过程">
+      <i class="fa fa-chevron-left"></i> jvm 类加载过程
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/02/computer-organization/cpu-memory-visibility/" rel="next" title="硬件层面多 CPU 下的可见性问题">
+      硬件层面多 CPU 下的可见性问题 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#docker-%E7%9A%84%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">Docker 的使用场景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%95%9C%E5%83%8F"><span class="nav-number">2.</span> <span class="nav-text">镜像</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%95%9C%E5%83%8F%E7%9A%84%E5%88%86%E5%B1%82%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">镜像的分层结构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%95%9C%E5%83%8F%E6%98%AF%E5%A6%82%E4%BD%95%E8%A2%AB%E5%A4%9A%E4%B8%AA%E5%AE%B9%E5%99%A8%E5%85%B1%E4%BA%AB%E7%9A%84"><span class="nav-number">2.1.1.</span> <span class="nav-text">镜像是如何被多个容器共享的</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#dockerfile"><span class="nav-number">3.</span> <span class="nav-text">Dockerfile</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#dockerfile-%E5%B8%B8%E7%94%A8%E6%8C%87%E4%BB%A4"><span class="nav-number">3.1.</span> <span class="nav-text">Dockerfile 常用指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#dockerfile-%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B"><span class="nav-number">3.2.</span> <span class="nav-text">Dockerfile 构建过程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#dockerfile-%E7%9A%84%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="nav-number">3.3.</span> <span class="nav-text">Dockerfile 的最佳实践</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#base-%E9%95%9C%E5%83%8F%E7%9A%84%E9%80%89%E6%8B%A9"><span class="nav-number">3.3.1.</span> <span class="nav-text">base 镜像的选择</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B0%BD%E9%87%8F%E5%88%A9%E7%94%A8%E9%95%9C%E5%83%8F%E5%B1%82%E7%BC%93%E5%86%B2"><span class="nav-number">3.3.2.</span> <span class="nav-text">尽量利用镜像层缓冲</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%95%9C%E5%83%8F%E5%B1%82%E5%B0%BD%E9%87%8F%E5%B0%91"><span class="nav-number">3.3.3.</span> <span class="nav-text">镜像层尽量少</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8-.dockerignore-%E6%96%87%E4%BB%B6"><span class="nav-number">3.3.4.</span> <span class="nav-text">使用 .dockerignore 文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%89%E5%85%A8%E6%80%A7"><span class="nav-number">3.3.5.</span> <span class="nav-text">安全性</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E6%96%B9%E9%9D%A2"><span class="nav-number">3.3.6.</span> <span class="nav-text">其他方面</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '8a1f3d1e3ab00dfca9148fe77578e917',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

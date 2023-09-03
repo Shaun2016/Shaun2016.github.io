@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="部署nginx服务 使用kubectl命令 kubectl run nginx-deployment --image&#x3D;nginx:1.7.9  --replicas&#x3D;2">
+<meta property="og:type" content="article">
+<meta property="og:title" content="k8s-运行应用">
+<meta property="og:url" content="http://shaun2016.github.io/2022/04/05/k8s/run-application/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="部署nginx服务 使用kubectl命令 kubectl run nginx-deployment --image&#x3D;nginx:1.7.9  --replicas&#x3D;2">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407004507010.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407004725110.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407004927642.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407005958681.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407011152220.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407011429837.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407011738843.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407013135487.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407014230058.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407014908696.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407020203297.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/k8s/image-20220407020414875.png">
+<meta property="article:published_time" content="2022-04-04T18:23:07.000Z">
+<meta property="article:modified_time" content="2022-12-23T05:19:42.589Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="k8s">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/k8s/image-20220407004507010.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2022/04/05/k8s/run-application/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>k8s-运行应用 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2022/04/05/k8s/run-application/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          k8s-运行应用
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-05 02:23:07" itemprop="dateCreated datePublished" datetime="2022-04-05T02:23:07+08:00">2022-04-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-12-23 13:19:42" itemprop="dateModified" datetime="2022-12-23T13:19:42+08:00">2022-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/k8s/" itemprop="url" rel="index"><span itemprop="name">k8s</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="部署nginx服务">部署nginx服务</h2>
+<h3 id="使用kubectl命令">使用kubectl命令</h3>
+<p><code>kubectl run nginx-deployment --image=nginx:1.7.9  --replicas=2</code></p>
+<span id="more"></span>
+<h3 id="使用配置文件">使用配置文件</h3>
+<p>创建nginx.yaml</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">2</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">nginx:1.7.9</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+<p><code>kubectl apply -f nginx-deployment.yaml</code></p>
+<h3 id="配置文件中添加nginx服务配置">配置文件中添加nginx服务配置</h3>
+<blockquote>
+<p>上面的配置文件，nginx的配置、html页面、日志在容器里，不方便修改和查看，下面设置挂载路径，将上述文件挂载到宿主机</p>
+</blockquote>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">2</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">nginx:1.7.9</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br><span class="line">        <span class="attr">volumeMounts:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">conf</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/nginx/nginx.conf</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">confd</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/nginx/conf.d</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">log</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/var/log/nginx</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">html</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/nginx/html</span></span><br><span class="line">      <span class="attr">tolerations:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">        <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">        <span class="attr">value:</span> <span class="string">&quot;nginx&quot;</span></span><br><span class="line">        <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">conf</span></span><br><span class="line">        <span class="attr">hostPath:</span></span><br><span class="line">          <span class="attr">path:</span> <span class="string">/home/work/kube/nginx/conf/nginx.conf</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">confd</span></span><br><span class="line">        <span class="attr">hostPath:</span></span><br><span class="line">          <span class="attr">path:</span> <span class="string">/home/work/kube/nginx/conf.d</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">log</span></span><br><span class="line">        <span class="attr">hostPath:</span></span><br><span class="line">          <span class="attr">path:</span> <span class="string">/home/work/kube/nginx/logs</span></span><br><span class="line">          <span class="attr">type:</span> <span class="string">Directory</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">html</span></span><br><span class="line">        <span class="attr">hostPath:</span></span><br><span class="line">          <span class="attr">path:</span> <span class="string">/home/work/kube/nginx/html</span></span><br><span class="line">          <span class="attr">type:</span> <span class="string">Directory</span></span><br></pre></td></tr></table></figure>
+<p>说明：</p>
+<ol type="1">
+<li>挂载的目录或文件需要先在宿主机上创建，其中nginx.conf从nginx容器中拷贝出来：<code>docker cp &#123;container-name&#125;:&#123;container-path&#125; &#123;host-path&#125;</code></li>
+<li></li>
+</ol>
+<p>（待补充）</p>
+<p>更新nginx应用：<code>kubectl apply -f nginx.yaml</code></p>
+<h3 id="创建service">创建Service</h3>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">9000</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">nginx-service</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">nodePort:</span> <span class="number">31090</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">NodePort</span></span><br></pre></td></tr></table></figure>
+<p>说明：</p>
+<ol type="1">
+<li><p>将Service的9000端口映射到Pod的80端口</p>
+<figure>
+<img src="/images/k8s/image-20220407004507010.png" alt="image-20220407004507010">
+<figcaption aria-hidden="true">image-20220407004507010</figcaption>
+</figure></li>
+<li><p>nginx-svc被分配的cluster-ip 192.168.31.22 可通过该IP访问后端nginx
+Pod</p>
+<figure>
+<img src="/images/k8s/image-20220407004725110.png" alt="image-20220407004725110">
+<figcaption aria-hidden="true">image-20220407004725110</figcaption>
+</figure></li>
+<li><p><code>kubectl describe service nginx-svc</code>
+查看nginx-svc与pod的关系</p>
+<figure>
+<img src="/images/k8s/image-20220407004927642.png" alt="image-20220407004927642">
+<figcaption aria-hidden="true">image-20220407004927642</figcaption>
+</figure>
+<p>Endpoints列举了两个Pod的IP和端口</p>
+<p>进入Pod
+<code>docker exec -it &#123;container_id&#125; /bin/bash</code>，查看ip地址
+<code>ip addr</code></p>
+<figure>
+<img src="/images/k8s/image-20220407005958681.png" alt="image-20220407005958681">
+<figcaption aria-hidden="true">image-20220407005958681</figcaption>
+</figure></li>
+<li><p>Service的Cluster IP 是怎么映射到Pod IP 的？</p>
+<p>通过iptables的转发规则，将流量转发到Pod上，Cluster的每个节点都配置了相同的iptables规则</p>
+<p><code>iptables-save | grep nginx</code></p>
+<figure>
+<img src="/images/k8s/image-20220407011152220.png" alt="image-20220407011152220">
+<figcaption aria-hidden="true">image-20220407011152220</figcaption>
+</figure>
+<p>其中，红框中两条规则：</p>
+<ul>
+<li>如果Cluster内的Pod要访问nginx-svc，则允许；</li>
+<li>其他源地址访问nginx-svc，跳转到规则<strong>KUBE-SVC-HL5LMXD5JFHQZ6LN</strong></li>
+</ul>
+<p><strong>KUBE-SVC-HL5LMXD5JFHQZ6LN</strong>规则为：</p>
+<figure>
+<img src="/images/k8s/image-20220407011429837.png" alt="image-20220407011429837">
+<figcaption aria-hidden="true">image-20220407011429837</figcaption>
+</figure>
+<p>0.5的概率跳转到<strong>KUBE-SEP-RSXKIBUPEFSC7MO6</strong></p>
+<p>否则跳转到<strong>KUBE-SEP-NHHTLNEICZVNVOWJ</strong></p>
+<p>下面是<strong>KUBE-SEP-RSXKIBUPEFSC7MO6</strong>与<strong>KUBE-SEP-NHHTLNEICZVNVOWJ</strong>的转发规则，即转发到后端Pod</p>
+<figure>
+<img src="/images/k8s/image-20220407011738843.png" alt="image-20220407011738843">
+<figcaption aria-hidden="true">image-20220407011738843</figcaption>
+</figure>
+<p>综上：iptables将访问Service的流量转发到后端Pod，并使用类似轮询的负载均衡策略</p></li>
+<li><p>只有集群内部的节点可以访问Service Cluster
+IP，比如在集群中，有服务A与B，A需要访问B，可以通过A的Service Cluster
+IP，但是这个IP是随机分配的，如果Service
+A销毁重建，B需要更改配置，很不方便</p></li>
+</ol>
+<h4 id="集群内访问nginx服务">集群内访问nginx服务</h4>
+<h5 id="通过service的cluster-ip">通过Service的Cluster IP</h5>
+<h5 id="通过dns访问">通过DNS访问</h5>
+<figure>
+<img src="/images/k8s/image-20220407013135487.png" alt="image-20220407013135487">
+<figcaption aria-hidden="true">image-20220407013135487</figcaption>
+</figure>
+<p>当有新的Service创建，coredns会添加该Service的DNS记录，Cluster中的Pod可以通过{serviceName}.{namespace}访问Service</p>
+<p>如：在一个临时的Pod中通过DNS访问nginx Service</p>
+<p><code>kubectl run busybox --rm -it --image=busybox /bin/sh</code></p>
+<p><code>wget &#123;serviceName&#125;.&#123;namespace&#125;:&#123;servicePort&#125;</code></p>
+<figure>
+<img src="/images/k8s/image-20220407014230058.png" alt="image-20220407014230058">
+<figcaption aria-hidden="true">image-20220407014230058</figcaption>
+</figure>
+<p>由于namespace为default，故可以省略；其他namespace不可省略</p>
+<figure>
+<img src="/images/k8s/image-20220407014908696.png" alt="image-20220407014908696">
+<figcaption aria-hidden="true">image-20220407014908696</figcaption>
+</figure>
+<p>nginx-svc.default.svc.cluster.local为完整域名</p>
+<p>这样，服务B访问A，通过A的serviceName就可以了，即使重新创建A的Service，也不需要修改B的配置</p>
+<h4 id="集群外部访问nginx服务">集群外部访问nginx服务</h4>
+<blockquote>
+<p>外部用户如何访问nginx？</p>
+</blockquote>
+<h4 id="nodeport">NodePort</h4>
+<p>Service绑定Cluster节点的静态端口对外提供服务，Cluster外部通过<code>&#123;NodeIP&#125;:&#123;NodePort&#125;</code>，如<code>master:31090</code>，<code>node1:31090</code></p>
+<p>如何将{NodeIP}:{NodePort}映射到Pod的？</p>
+<figure>
+<img src="/images/k8s/image-20220407020203297.png" alt="image-20220407020203297">
+<figcaption aria-hidden="true">image-20220407020203297</figcaption>
+</figure>
+<p>使用iptabels，上面两条规则：当访问31090端口的请求转发到规则<strong>KUBE-SVC-HL5LMXD5JFHQZ6LN</strong></p>
+<figure>
+<img src="/images/k8s/image-20220407020414875.png" alt="image-20220407020414875">
+<figcaption aria-hidden="true">image-20220407020414875</figcaption>
+</figure>
+<p><strong>KUBE-SVC-HL5LMXD5JFHQZ6LN</strong> 对Pod进行负载均衡</p>
+<h3 id="相关指令">相关指令</h3>
+<table>
+<colgroup>
+<col style="width: 29%">
+<col style="width: 70%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>动作</th>
+<th>指令</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>查看nginx的pods</td>
+<td><code>kubectl get pods -n namespace</code></td>
+</tr>
+<tr class="even">
+<td>查看发布的deployment详情</td>
+<td><code>kubectl describe deployment nginx -n namespace</code></td>
+</tr>
+<tr class="odd">
+<td>查看pod详情</td>
+<td><code>kubectl describe pod &#123;pod_name&#125; -n namespace</code></td>
+</tr>
+<tr class="even">
+<td>删除pod</td>
+<td><code>kubectl delete -n default pod nginx-deployment</code></td>
+</tr>
+<tr class="odd">
+<td>查询服务列表</td>
+<td><code>kubectl get services -n namespace</code></td>
+</tr>
+<tr class="even">
+<td>查询服务详情</td>
+<td><code>kubectl describe service &#123;deployment-name&#125; -n namespace</code></td>
+</tr>
+<tr class="odd">
+<td>删除一个service服务</td>
+<td><code>kubectl delete services &#123;deployment-name&#125; -n namespace</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="存在问题">存在问题</h2>
+<ol type="1">
+<li>挂载的路径和文件需要提前创建在宿主机，集群下无法确定在哪台机器上部署，不方便提前创建，如何解决？</li>
+<li>访问集群中的任意节点都按照相同的iptables进行转发到某个Pod，即访问每个节点都有负载均衡的效果，那外部域名应该绑定哪个节点ip呢？还是通过一个nginx对Cluster中的节点做分发（防止节点挂机，不是做负载均衡）</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/k8s/" rel="tag"># k8s</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/04/k8s/architecture/" rel="prev" title="kubernates 架构">
+      <i class="fa fa-chevron-left"></i> kubernates 架构
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/08/algorithm/menu/" rel="next" title="算法题-目录">
+      算法题-目录 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2nginx%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.</span> <span class="nav-text">部署nginx服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8kubectl%E5%91%BD%E4%BB%A4"><span class="nav-number">1.1.</span> <span class="nav-text">使用kubectl命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="nav-number">1.2.</span> <span class="nav-text">使用配置文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E4%B8%AD%E6%B7%BB%E5%8A%A0nginx%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE"><span class="nav-number">1.3.</span> <span class="nav-text">配置文件中添加nginx服务配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BAservice"><span class="nav-number">1.4.</span> <span class="nav-text">创建Service</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E5%86%85%E8%AE%BF%E9%97%AEnginx%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.4.1.</span> <span class="nav-text">集群内访问nginx服务</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%80%9A%E8%BF%87service%E7%9A%84cluster-ip"><span class="nav-number">1.4.1.1.</span> <span class="nav-text">通过Service的Cluster IP</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%80%9A%E8%BF%87dns%E8%AE%BF%E9%97%AE"><span class="nav-number">1.4.1.2.</span> <span class="nav-text">通过DNS访问</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E5%A4%96%E9%83%A8%E8%AE%BF%E9%97%AEnginx%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.4.2.</span> <span class="nav-text">集群外部访问nginx服务</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#nodeport"><span class="nav-number">1.4.3.</span> <span class="nav-text">NodePort</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%B8%E5%85%B3%E6%8C%87%E4%BB%A4"><span class="nav-number">1.5.</span> <span class="nav-text">相关指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AD%98%E5%9C%A8%E9%97%AE%E9%A2%98"><span class="nav-number">2.</span> <span class="nav-text">存在问题</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '174bb82fe294ec88aa2ae8580fa8d58d',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

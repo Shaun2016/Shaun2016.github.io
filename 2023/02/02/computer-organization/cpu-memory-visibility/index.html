@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍硬件层面多 CPU 下的可见性问题，主要包括：  cpu 的多级缓存 什么是可见性问题 缓存一致性协议 MESI MESI 的问题与优化 什么是指令重排以及指令重排产生的原因 cpu 内存屏障 伪共享问题">
+<meta property="og:type" content="article">
+<meta property="og:title" content="硬件层面多 CPU 下的可见性问题">
+<meta property="og:url" content="http://shaun2016.github.io/2023/02/02/computer-organization/cpu-memory-visibility/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍硬件层面多 CPU 下的可见性问题，主要包括：  cpu 的多级缓存 什么是可见性问题 缓存一致性协议 MESI MESI 的问题与优化 什么是指令重排以及指令重排产生的原因 cpu 内存屏障 伪共享问题">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/cpu_cache.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/knk_2023-01-27_14-02-07.jpeg">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/%E5%A4%9A%E6%A0%B8%E7%BC%93%E5%AD%98%E5%8D%8F%E5%90%8C%E8%BF%87%E7%A8%8B-%E5%90%8C%E6%97%B6%E8%AF%BB.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/%E5%A4%9A%E6%A0%B8%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7-%E4%BF%AE%E6%94%B9.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/%E5%A4%9A%E6%A0%B8%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7-%E5%90%8C%E6%97%B6%E5%86%99.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/cpu_mesi_invalidate_ack.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/store_buffer.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/image-20230201134939715.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/%E7%BC%93%E5%AD%98%E8%A1%8C.drawio.png">
+<meta property="article:published_time" content="2023-02-02T05:52:01.000Z">
+<meta property="article:modified_time" content="2023-02-02T06:03:48.333Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="计算机组成">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/jvm/cpu_cache.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2023/02/02/computer-organization/cpu-memory-visibility/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>硬件层面多 CPU 下的可见性问题 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/02/02/computer-organization/cpu-memory-visibility/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          硬件层面多 CPU 下的可见性问题
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-02-02 13:52:01 / 修改时间：14:03:48" itemprop="dateCreated datePublished" datetime="2023-02-02T13:52:01+08:00">2023-02-02</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍硬件层面多 CPU 下的可见性问题，主要包括：</p>
+<ol type="1">
+<li>cpu 的多级缓存</li>
+<li>什么是可见性问题</li>
+<li>缓存一致性协议 MESI</li>
+<li>MESI 的问题与优化</li>
+<li>什么是指令重排以及指令重排产生的原因</li>
+<li>cpu 内存屏障</li>
+<li>伪共享问题</li>
+</ol>
+</blockquote>
+<span id="more"></span>
+<h2 id="为什么会导致-cpu-内存可见性问题">为什么会导致 CPU
+内存可见性问题</h2>
+<blockquote>
+<p>在讨论 CPU 内存可见性问题之前，首先介绍下 cpu 的多级缓存</p>
+</blockquote>
+<h3 id="cpu-多级缓存">cpu 多级缓存</h3>
+<h4 id="来历">来历</h4>
+<p>CPU 负责执行程序的指令，内存负责存数据。在很多年前，CPU
+的频率与内存总线的频率在同一层面上，内存的访问速度仅比寄存器慢一些。但是，上世纪
+90 年代 CPU
+的频率大大提升，但内存总线的频率与内存芯片的性能却没有得到成比例的提升。并不是因为造不出更快的内存，只是因为太贵了，内存如果要达到目前
+CPU 那样的速度，那么它的造价恐怕要贵上好几个数量级。所以，CPU
+的运算速度要比内存读写速度快很多。这样会使 CPU
+花费很长的时间等待数据的到来或把数据写入到内存中。所以，<strong>为了解决
+CPU
+运算速度与内存读写速度不匹配的矛盾</strong>，就出现了<strong>CPU缓存</strong></p>
+<h4 id="概念">概念</h4>
+<p>CPU缓存：CPU与内存之间的数据交换器，它的容量比内存小的多但是交换速度却比内存要快得多，CPU缓存一般直接跟CPU芯片集成或位于主板总线互连的独立芯片上</p>
+<h4 id="作用">作用</h4>
+<p>减小相应时间：CPU往往需要重复处理相同的数据、重复执行相同的指令，如果这部分数据、指令
+CPU 能在 CPU 缓存中找到，CPU
+就不需要从内存或硬盘中再读取数据、指令，从而减少了整机的响应时间。</p>
+<p>缓存的作用满足以下两种<strong>局部性原理</strong>：</p>
+<ul>
+<li><strong>时间局部性（Temporal
+Locality）</strong>：如果一个信息项正在被访问，那么在近期它很可能还会被再次访问。</li>
+<li><strong>空间局部性（Spatial
+Locality）</strong>：如果一个存储器的位置被引用，那么将来他附近的位置也会被引用。</li>
+</ul>
+<h4 id="结构">结构</h4>
+<p>CPU 存在三级缓存：L1, L2, L3，其中，L1 又分为 L1d (L1 Data
+Cache，用于存储数据) 和 L1i (L1 Instruction Cache，用于存储指令)，L2
+缓存比 L1 大一些，一般是每个 CPU 都有一个独立的 L2 缓存，L3
+是最大的一级，在同一个 CPU 插槽的 CPU 共享一个 L3 缓存</p>
+<figure>
+<img src="/images/jvm/cpu_cache.drawio.png" alt="cpu_cache.drawio">
+<figcaption aria-hidden="true">cpu_cache.drawio</figcaption>
+</figure>
+<p>不同层级缓存读取数据速度的差异如下：</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">从CPU到</th>
+<th style="text-align: left;">大约需要的CPU周期</th>
+<th style="text-align: left;">大约需要的时间(单位ns)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">寄存器</td>
+<td style="text-align: left;">1 cycle</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">L1 Cache</td>
+<td style="text-align: left;">~3-4 cycles</td>
+<td style="text-align: left;">~0.5-1 ns</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">L2 Cache</td>
+<td style="text-align: left;">~10-20 cycles</td>
+<td style="text-align: left;">~3-7 ns</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">L3 Cache</td>
+<td style="text-align: left;">~40-45 cycles</td>
+<td style="text-align: left;">~15 ns</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">跨槽传输</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">~20 ns</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">内存</td>
+<td style="text-align: left;">~120-240 cycles</td>
+<td style="text-align: left;">~60-120ns</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>速度比较：100 * L1 = 20 * L2 = 8 * L3 = 内存</p>
+</blockquote>
+<p>CPU
+获取数据，首先会在最快的缓存中找数据，如果缓存没有命中，则往下一级找，直到三级缓存都找不到，再到内存找数据</p>
+<h4 id="数据流">数据流</h4>
+<ol type="1">
+<li>程序以及数据被加载到主内存</li>
+<li>指令和数据被加载到 CPU 的高速缓存</li>
+<li>CPU 执行指令，把结果写到高速缓存</li>
+<li>高速缓存中的数据写回主内存</li>
+</ol>
+<p>在这个过程中，如果 CPU
+在高速缓存中已经找到数据，则不会到主内存中加载，这样多个 CPU
+同时工作，就可能产生同一份数据，在多个 CPU
+中值不一致的问题，我们称之为<strong>内存可见性问题</strong></p>
+<p>为了解决<strong>内存可见性问题</strong>，有两个办法，一个是总线锁，一个是使用一致性协议</p>
+<h3 id="硬件层面-cpu-内存可见性问题的解决方案">硬件层面 CPU
+内存可见性问题的解决方案</h3>
+<h4 id="总线锁">总线锁</h4>
+<p>涉及共享的变量存储的时候，总线锁使用处理器提供的一个 LOCK#
+信号，当一个处理器在总线上输出此信号时，对总线加锁，禁止其他线程读取内存；变量值写入到主内存变量后，才会解锁</p>
+<blockquote>
+<p>这里是不是还要清空其他 CPU 缓存中的变量</p>
+</blockquote>
+<p>由于总线锁会锁住整个内存，其他线程只能等待，效率太低，所以有了缓存一致性协议</p>
+<p>缓存一致性协议有 MSI，MESI，MOSI 等，下面介绍下 MESI</p>
+<h4 id="cpu缓存一致性协议mesi">CPU缓存一致性协议(MESI)</h4>
+<h5 id="缓存行-cache-line">缓存行 Cache line</h5>
+<p>在 L1，L2，L3
+中存储的数据不是以变量单独存储的，在每级缓存里以缓存行为单位存储，每个缓存行大小在32字节-256字节之间，缓存行大小通常为64字节（工业经验得出）</p>
+<p>缓存每次更新都是从主存中加载连续的 64 个字节</p>
+<p>下面介绍的 MESI 协议是基于一个 Cache line 的</p>
+<h5 id="mesi-协议的状态">MESI 协议的状态</h5>
+<p>每个 Cache line 抽出 2bit 的位置，用来表示 4 个状态：M，E，S，I</p>
+<table>
+<colgroup>
+<col style="width: 17%">
+<col style="width: 48%">
+<col style="width: 11%">
+<col style="width: 9%">
+<col style="width: 13%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>状态</th>
+<th>含义</th>
+<th>缓存行是否有效</th>
+<th>数据存在位置</th>
+<th>与内存数据的比较</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>M 修改 Modified</td>
+<td>当前 CPU 缓存有最新数据， 其他 CPU 拥有失效数据，当前 CPU
+数据与内存不一致，但以当前 CPU 数据为准</td>
+<td>有效</td>
+<td>只在本缓存行</td>
+<td>不一致</td>
+</tr>
+<tr class="even">
+<td>E 独享/互斥 Exclusize</td>
+<td>只有当前 CPU 有数据，其他 CPU 没有该数据，当前 CPU
+数据与内存数据一致</td>
+<td>有效</td>
+<td>只在本缓存行</td>
+<td>一致</td>
+</tr>
+<tr class="odd">
+<td>S 共享 Shared</td>
+<td>当前 CPU 与其他 CPU 拥有相同数据，并与内存中数据一致</td>
+<td>有效</td>
+<td>多个缓存行</td>
+<td>一致</td>
+</tr>
+<tr class="even">
+<td>I 无效 Invalid</td>
+<td>当前 CPU 数据失效，其他 CPU
+数据可能有可能无，数据应从内存中读取，且当前 CPU 与 内存数据不一致</td>
+<td>无效</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<p>对于 Cache line 的操作分为以下四种：</p>
+<ol type="1">
+<li>Local Read（LR）：当前 CPU 读</li>
+<li>Local Write（LW）：当前 CPU 写</li>
+<li>Remote Read（RR）：其他 CPU 读</li>
+<li>Remote Write（RW）：其他 CPU 写</li>
+</ol>
+<blockquote>
+<p>当前 CPU 读写表示 CPU 操作自己的缓存行，其他 CPU 读写表示 CPU
+操作其他 CPU 的缓存行</p>
+<p>MESI
+是针对单个缓存行进行处理，如果数据超过一个缓存行的大小，无法使用缓存一致性对该数据控制，只能使用锁总线的方式</p>
+</blockquote>
+<p>那么当一个缓存行对应的内存被执行上面四种操作后，缓存行的状态会发生什么变化呢？各状态的转移如下图所示</p>
+<figure>
+<img src="/images/jvm/knk_2023-01-27_14-02-07.jpeg" alt="knk_2023-01-27 14-02-07">
+<figcaption aria-hidden="true">knk_2023-01-27 14-02-07</figcaption>
+</figure>
+<p>说明：</p>
+<table>
+<colgroup>
+<col style="width: 13%">
+<col style="width: 86%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>状态</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Modified</td>
+<td><strong>LR</strong>: 当前 CPU
+缓存中有最新数据，状态不变<br><strong>LW</strong>: 直接修改当前 CPU
+缓存，修改后仍拥有最新数据，状态不变<br><strong>RR</strong>: 其他 CPU
+方式读操作，为了保证一致性，当前 CPU 将数据写回内存，随后 RR
+将数据通知其他 CPU 更新缓存，使其他 CPU 拥有和当前 CPU
+相同的数据，状态改为 S<br><strong>RW</strong>: 其他 CPU
+写，本缓存失效，状态改为 I</td>
+</tr>
+<tr class="even">
+<td>Exclusive</td>
+<td><strong>LR</strong>: 当前 CPU
+缓存中独享最新数据，状态不变<br><strong>LW</strong>: 修改当前 CPU
+缓存值，状态改为 M<br><strong>RR</strong>: 其他 CPU 读后，多个 CPU
+数据都与内存一致，状态改为 S<br><strong>RW</strong>: 其他 CPU
+写操作，其他 CPU 数据为最新，当前 CPU 数据失效，状态改为 I</td>
+</tr>
+<tr class="odd">
+<td>Shared</td>
+<td><strong>LR</strong>: 当前 CPU
+读数据，状态不变<br><strong>LW</strong>: 当前 CPU
+写操作，并不会将数据立即写回内存，为了保证一致性，将状态修改为
+M<br><strong>RR</strong>: 其他 CPU 读操作，因为多个 CPU
+数据都与内存一致，状态不变<br><strong>RW</strong>: 其他 CPU
+写操作，其他 CPU 数据为最新，当前 CPU 数据失效，状态改为 I</td>
+</tr>
+<tr class="even">
+<td>Invalid</td>
+<td><strong>LR</strong>: 当前 CPU 读，当前缓存不可用，需读内存，若其他
+CPU 无数据，当前 CPU 独享，状态改为 E；若其他 CPU 有数据且状态为
+S、E，状态改为 S；其他 CPU 有数据且状态为 M，其他 CPU
+先将数据写回内存，随后当前 CPU 读数据，状态改为
+S<br><strong>LW</strong>: 当前 CPU 写，状态变为
+M<br><strong>RR</strong>: 其他 CPU 读，与当前 CPU
+缓存无关，状态不变<br><strong>RW</strong>: 其他 CPU 写，与当前 CPU
+缓存无关，状态不变</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>总的来说，对于 MESI 协议，从 CPU 读写角度来说会遵循以下原则：</p>
+<p>CPU 读请求：缓存处于 M、E、S 状态都可以被读取，I 状态 CPU
+只能从主存中读取数据</p>
+<p>CPU 写请求：缓存处于 M、E 状态才可以被写。对于 S 状态的写，需要将其他
+CPU 中缓存行置为无效才可写</p>
+</blockquote>
+<h5 id="多核缓存协同操作的过程">多核缓存协同操作的过程</h5>
+<p><strong>两个CPU同时读：</strong></p>
+<figure>
+<img src="/images/jvm/多核缓存协同过程-同时读.drawio.png" alt="多核缓存协同过程-同时读.drawio">
+<figcaption aria-hidden="true">多核缓存协同过程-同时读.drawio</figcaption>
+</figure>
+<p><strong>一个CPU写，一个CPU读：</strong></p>
+<figure>
+<img src="/images/jvm/多核缓存一致性-修改.drawio.png" alt="多核缓存一致性-修改.drawio">
+<figcaption aria-hidden="true">多核缓存一致性-修改.drawio</figcaption>
+</figure>
+<p><strong>两个CPU同时写：</strong></p>
+<figure>
+<img src="/images/jvm/多核缓存一致性-同时写.drawio.png" alt="多核缓存一致性-同时写.drawio">
+<figcaption aria-hidden="true">多核缓存一致性-同时写.drawio</figcaption>
+</figure>
+<h4 id="mesi-的问题与优化">MESI 的问题与优化</h4>
+<p>严格按照 MESI 协议，会有严重的性能问题，如：</p>
+<ol type="1">
+<li>若 CPU0 发生 LW，首先要通知其他 CPU 将对应缓存行的状态改为
+I，等待其他 CPU 的确认回执，CPU0 在这段时间内都是阻塞状态</li>
+<li>若 CPU1 发生 RW，CPU0 需要将自身缓存失效并发送确认回执，当 RW
+事件很多时，实时处理时效时间存在很难，会有一定的延迟</li>
+</ol>
+<p>为了解决上述问题，引入了写缓冲区（Load Buffer）和失效队列（Invalid
+Queue）</p>
+<h5 id="写缓冲区load-buffer">写缓冲区（Load Buffer）</h5>
+<p>写缓冲区是属于每个 CPU 的，当使用了写缓冲区后，每当发生 LW，当前 CPU
+不再阻塞地等待其他 CPU
+的确认回执，而是直接将更新的值写入写缓冲区，然后继续执行后续指令</p>
+<p>在进行 LR 时，CPU
+会先在写缓冲区中查询记录是否存在，如果存在则会从写缓冲区中直接获取，这一机制即是
+Store Fowarding</p>
+<h5 id="失效队列invalid-queue">失效队列（Invalid Queue）</h5>
+<p>失效队列也是属于每个 CPU 的，使用失效队列后，发生 RW 对应的 CPU
+缓存不再同步地将自身缓存失效并发送确认回执，而是将失效消息放入失效队列，立即发送确认回执</p>
+<p>后续 CPU 会在空闲是对失效队列中的消息进行处理，将对应的 CPU
+缓存失效</p>
+<p>Ref：<a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_52163830/article/details/126652300">缓存一致性协议硬核讲解</a></p>
+<h4 id="指令重排">指令重排</h4>
+<p>引入 Load Buffer
+后，即使读写指令本身是按照顺序执行的，但最终可能乱序执行，我们称这个问题为<strong>指令重排</strong></p>
+<h5 id="指令重排的原因">指令重排的原因</h5>
+<p>由于 CPU0 发现 LW 时，在通知其他 CPU
+失效并等待回执的过程中是阻塞状态，影响了性能</p>
+<figure>
+<img src="/images/jvm/cpu_mesi_invalidate_ack.drawio.png" alt="cpu_mesi_invalidate_ack.drawio">
+<figcaption aria-hidden="true">cpu_mesi_invalidate_ack.drawio</figcaption>
+</figure>
+<p>故使用 store buffer 来优化：CPU0 在 LW 时，将内容写入 store
+buffer，同时通知其他 CPU 失效，然后就可以处理其他指令；当收到了所有其他
+CPU 的 ack 后，再将 store buffer 中的数据写入 cache line 中。当 cache
+line 对应的内存发生 RR 时再将数据从 cache line 写入主存</p>
+<figure>
+<img src="/images/jvm/store_buffer.drawio.png" alt="store_buffer.drawio">
+<figcaption aria-hidden="true">store_buffer.drawio</figcaption>
+</figure>
+<p>在上图的流程中，假设指令 A 是写操作（LW），指令 B 是读操作（LR）；CPU
+先执行 A，写的内容会先放到 store buffer，而不在内存中；执行完 A 接着执行
+B，这样给外界的感觉就是，先执行了 B，后执行了 A</p>
+<p>Ref：<a target="_blank" rel="noopener" href="https://www.shuzhiduo.com/A/kvJ3QQ0gdg/">指令重排的原理</a></p>
+<h5 id="指令重排的验证">指令重排的验证</h5>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> org.junit.Test;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.CyclicBarrier;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">InstructionReOrderTest</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="variable">a</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="variable">b</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="variable">x</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="variable">y</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Test</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">test</span><span class="params">()</span> <span class="keyword">throws</span> InterruptedException &#123;</span><br><span class="line">        <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">            i++;</span><br><span class="line">            a = <span class="number">0</span>;</span><br><span class="line">            b = <span class="number">0</span>;</span><br><span class="line">            x = <span class="number">0</span>;</span><br><span class="line">            y = <span class="number">0</span>;</span><br><span class="line">            <span class="comment">//创建2个CyclicBarrier对象,执行完后执行当前类的run方法</span></span><br><span class="line">            <span class="type">CyclicBarrier</span> <span class="variable">cb</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">CyclicBarrier</span>(<span class="number">2</span>);</span><br><span class="line">            <span class="type">Thread</span> <span class="variable">t1</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Thread</span>(<span class="keyword">new</span> <span class="title class_">Runnable</span>() &#123;</span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">run</span><span class="params">()</span> &#123;</span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        cb.await();</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                        e.printStackTrace();</span><br><span class="line">                    &#125;</span><br><span class="line">                    a = <span class="number">1</span>;</span><br><span class="line">                    y = b;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">            <span class="type">Thread</span> <span class="variable">t2</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Thread</span>(<span class="keyword">new</span> <span class="title class_">Runnable</span>() &#123;</span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">run</span><span class="params">()</span> &#123;</span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        cb.await();</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                        e.printStackTrace();</span><br><span class="line">                    &#125;</span><br><span class="line">                    b = <span class="number">1</span>;</span><br><span class="line">                    x = a;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">            t1.start();</span><br><span class="line">            t2.start();</span><br><span class="line">            t1.join();</span><br><span class="line">            t2.join();</span><br><span class="line">            <span class="keyword">if</span> (x == <span class="number">0</span> &amp;&amp; y == <span class="number">0</span>) &#123;</span><br><span class="line">                <span class="type">String</span> <span class="variable">result</span> <span class="operator">=</span> <span class="string">&quot;第&quot;</span> + i + <span class="string">&quot;次发生了指令重排，执行结果x=&quot;</span> + x + <span class="string">&quot;;y=&quot;</span> + y;</span><br><span class="line">                System.out.println(result);</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure>
+<img src="/images/jvm/image-20230201134939715.png" alt="image-20230201134939715">
+<figcaption aria-hidden="true">image-20230201134939715</figcaption>
+</figure>
+<p>如上面的例子，如果严格按照顺序执行，无论哪个线程先被执行，x 和 y
+的值必有一个为 1，结果显示却出现了 x 和 y 都为 0
+的结果，只可能是两个线程内都发生了指令重排导致的</p>
+<p>Ref：<a target="_blank" rel="noopener" href="https://www.suibibk.com/topic/834114165822980096">并发(三)、Java实现一段简单的会导致指令重排的例子</a></p>
+<p>Ref：<a target="_blank" rel="noopener" href="https://blog.csdn.net/fu123123fu/article/details/103731228">CyclicBarrier用法</a></p>
+<h5 id="指令重排带来哪些问题">指令重排带来哪些问题</h5>
+<ol type="1">
+<li>并发情况下影响原有的业务逻辑</li>
+<li>导致单例模式失效</li>
+</ol>
+<blockquote>
+<p>对于 MESI 优化带来的问题，下面讨论在硬件层面的解决办法</p>
+</blockquote>
+<h4 id="cpu-内存屏障">CPU 内存屏障</h4>
+<blockquote>
+<p>为什么要使用 CPU 内存屏障？</p>
+<p>MESI
+原本是<strong>强一致性的</strong>，但经过优化后，弱化成<strong>最终一致性</strong>，在某些中间状态下，多个
+CPU
+之间的数据并不一致，还可能出现乱序执行的情况；内存屏障就是用于禁止指令重排</p>
+</blockquote>
+<p>每种 CPU 的屏障指令是不一样，例如 Intel 的 CPU 设计中有 3
+条指令：</p>
+<ul>
+<li>sfence：save
+fence，写屏障指令。在sfence指令前的写操作必须在sfence指令后的写操作前完成</li>
+<li>lfence：load
+fence，读屏障指令。在lfence指令前的读操作必须在lfence指令后的读操作前完成</li>
+<li>mfence：在mfence指令前得读写操作必须在mfence指令后的读写操作前完成</li>
+</ul>
+<p>Ref：<a target="_blank" rel="noopener" href="https://www.jianshu.com/p/819f26a321ce">内存屏障</a></p>
+<blockquote>
+<p>小节：上面介绍了 cpu
+可见性问题的产生原因，可见性问题在硬件层面的解决方案，CPU 缓存一致性协议
+MESI，以及 MESI 在使用写缓冲区优化性能而引发的指令重排问题</p>
+</blockquote>
+<blockquote>
+<p>上文主要讨论了可见性问题，在硬件层面使用了缓存行 +
+缓存一致性协议来解决，不过这带来了一个性能问题：伪共享问题</p>
+</blockquote>
+<h2 id="伪共享问题">伪共享问题</h2>
+<p>上面提到了缓存行和缓存一致性协议，看下面的场景：</p>
+<p>主存中有 <code>a</code> <code>b</code> 两个变量，CPU A 中的线程在对
+<code>a</code> 修改，CPU B 的线程对 <code>b</code> 读取，当前者修改
+<code>a</code> 后，会把 <code>a</code> 所在的缓存行写回主存，令 CPU B
+中对应的缓存行失效。这时 CPU B 读取 <code>b</code>
+时在缓存中找不到，需要从主存重新加载；</p>
+<p>（双写的场景会咋样呢？）</p>
+<figure>
+<img src="/images/jvm/缓存行.drawio.png" alt="缓存行.drawio">
+<figcaption aria-hidden="true">缓存行.drawio</figcaption>
+</figure>
+<p>这样就出现了一个问题，<code>b</code> 与 <code>a</code>
+不相关，每次却要因为 <code>a</code> 的更新而到主存中重新读取</p>
+<p>当多线程修改相互独立的数据时，如果这些数据共享同一个缓存行，会无意中影响彼此的性能，这就是<strong>伪共享</strong></p>
+<h3 id="伪共享的例子">伪共享的例子</h3>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Counter</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">volatile</span> <span class="type">long</span> <span class="variable">x</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">volatile</span> <span class="type">long</span> <span class="variable">y</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">FalseSharingExample</span> &#123;</span><br><span class="line">  </span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> &#123;</span><br><span class="line">        <span class="type">Counter</span> <span class="variable">counter</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Counter</span>();</span><br><span class="line"></span><br><span class="line">        <span class="type">long</span> <span class="variable">iterations</span> <span class="operator">=</span> <span class="number">1_000_000_000</span>;</span><br><span class="line"></span><br><span class="line">        <span class="type">Thread</span> <span class="variable">thread1</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Thread</span>(() -&gt; &#123;</span><br><span class="line">            <span class="type">long</span> <span class="variable">startTime</span> <span class="operator">=</span> System.currentTimeMillis();</span><br><span class="line">            <span class="keyword">for</span>(<span class="type">long</span> i=<span class="number">0</span>; i&lt;iterations; i++) &#123;</span><br><span class="line">                counter.x++;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="type">long</span> <span class="variable">endTime</span> <span class="operator">=</span> System.currentTimeMillis();</span><br><span class="line">            System.out.println(<span class="string">&quot;total time: &quot;</span> + (endTime - startTime));</span><br><span class="line">        &#125;);</span><br><span class="line">        <span class="type">Thread</span> <span class="variable">thread2</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Thread</span>(() -&gt; &#123;</span><br><span class="line">            <span class="type">long</span> <span class="variable">startTime</span> <span class="operator">=</span> System.currentTimeMillis();</span><br><span class="line">            <span class="keyword">for</span>(<span class="type">long</span> i=<span class="number">0</span>; i&lt;iterations; i++) &#123;</span><br><span class="line">                counter.y++;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="type">long</span> <span class="variable">endTime</span> <span class="operator">=</span> System.currentTimeMillis();</span><br><span class="line">            System.out.println(<span class="string">&quot;total time: &quot;</span> + (endTime - startTime));</span><br><span class="line">        &#125;);</span><br><span class="line"></span><br><span class="line">        thread1.start();</span><br><span class="line">        thread2.start();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 运行结果</span></span><br><span class="line"><span class="comment">// total time: 29909</span></span><br><span class="line"><span class="comment">// total time: 29922</span></span><br></pre></td></tr></table></figure>
+<p>将数据结构改为如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Counter</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">volatile</span> <span class="type">long</span> <span class="variable">x</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="type">long</span> p1, p2, p3, p4, p5, p6, p7;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">volatile</span> <span class="type">long</span> <span class="variable">y</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 运行结果</span></span><br><span class="line"><span class="comment">// total time: 7271</span></span><br><span class="line"><span class="comment">// total time: 7276</span></span><br></pre></td></tr></table></figure>
+<p>加入了 7 个long类型数值，使得 <code>x</code> 与 <code>y</code>
+中间产生了 56 字节（一个 long 类型占 8 字节），这样保证 <code>x</code>
+与 <code>y</code> 不会在一个缓存行中，而从避免了伪共享的问题</p>
+<h2 id="参考文献">参考文献</h2>
+<p><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/d34666a0d3d9">理解jvm之多线程数据一致性问题</a></p>
+<p><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/2048302">CPU多级缓存</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/denglin12315/article/details/122639341">缓存一致性协议(MESI)——缓存加锁
+协议</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/467782159">全知乎最详细的并发研究之CPU缓存一致性协议(MESI)有这一篇就够了！</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_52163830/article/details/126652300">缓存一致性协议硬核讲解</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.shuzhiduo.com/A/kvJ3QQ0gdg/">cpu指令重排序的原理</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BB%84%E6%88%90/" rel="tag"># 计算机组成</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/26/docker/docker-image-build/" rel="prev" title="docker 镜像构建篇">
+      <i class="fa fa-chevron-left"></i> docker 镜像构建篇
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/18/java/java-lambda/" rel="next" title="java8 链式编程">
+      java8 链式编程 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BC%9A%E5%AF%BC%E8%87%B4-cpu-%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">1.</span> <span class="nav-text">为什么会导致 CPU
+内存可见性问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#cpu-%E5%A4%9A%E7%BA%A7%E7%BC%93%E5%AD%98"><span class="nav-number">1.1.</span> <span class="nav-text">cpu 多级缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9D%A5%E5%8E%86"><span class="nav-number">1.1.1.</span> <span class="nav-text">来历</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5"><span class="nav-number">1.1.2.</span> <span class="nav-text">概念</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BD%9C%E7%94%A8"><span class="nav-number">1.1.3.</span> <span class="nav-text">作用</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.4.</span> <span class="nav-text">结构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="nav-number">1.1.5.</span> <span class="nav-text">数据流</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AC%E4%BB%B6%E5%B1%82%E9%9D%A2-cpu-%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%98%E7%9A%84%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">1.2.</span> <span class="nav-text">硬件层面 CPU
+内存可见性问题的解决方案</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%80%BB%E7%BA%BF%E9%94%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">总线锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#cpu%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E5%8D%8F%E8%AE%AEmesi"><span class="nav-number">1.2.2.</span> <span class="nav-text">CPU缓存一致性协议(MESI)</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%BC%93%E5%AD%98%E8%A1%8C-cache-line"><span class="nav-number">1.2.2.1.</span> <span class="nav-text">缓存行 Cache line</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#mesi-%E5%8D%8F%E8%AE%AE%E7%9A%84%E7%8A%B6%E6%80%81"><span class="nav-number">1.2.2.2.</span> <span class="nav-text">MESI 协议的状态</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%A4%9A%E6%A0%B8%E7%BC%93%E5%AD%98%E5%8D%8F%E5%90%8C%E6%93%8D%E4%BD%9C%E7%9A%84%E8%BF%87%E7%A8%8B"><span class="nav-number">1.2.2.3.</span> <span class="nav-text">多核缓存协同操作的过程</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#mesi-%E7%9A%84%E9%97%AE%E9%A2%98%E4%B8%8E%E4%BC%98%E5%8C%96"><span class="nav-number">1.2.3.</span> <span class="nav-text">MESI 的问题与优化</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%86%99%E7%BC%93%E5%86%B2%E5%8C%BAload-buffer"><span class="nav-number">1.2.3.1.</span> <span class="nav-text">写缓冲区（Load Buffer）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%A4%B1%E6%95%88%E9%98%9F%E5%88%97invalid-queue"><span class="nav-number">1.2.3.2.</span> <span class="nav-text">失效队列（Invalid Queue）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92"><span class="nav-number">1.2.4.</span> <span class="nav-text">指令重排</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92%E7%9A%84%E5%8E%9F%E5%9B%A0"><span class="nav-number">1.2.4.1.</span> <span class="nav-text">指令重排的原因</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92%E7%9A%84%E9%AA%8C%E8%AF%81"><span class="nav-number">1.2.4.2.</span> <span class="nav-text">指令重排的验证</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92%E5%B8%A6%E6%9D%A5%E5%93%AA%E4%BA%9B%E9%97%AE%E9%A2%98"><span class="nav-number">1.2.4.3.</span> <span class="nav-text">指令重排带来哪些问题</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#cpu-%E5%86%85%E5%AD%98%E5%B1%8F%E9%9A%9C"><span class="nav-number">1.2.5.</span> <span class="nav-text">CPU 内存屏障</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BC%AA%E5%85%B1%E4%BA%AB%E9%97%AE%E9%A2%98"><span class="nav-number">2.</span> <span class="nav-text">伪共享问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%AA%E5%85%B1%E4%BA%AB%E7%9A%84%E4%BE%8B%E5%AD%90"><span class="nav-number">2.1.</span> <span class="nav-text">伪共享的例子</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-number">3.</span> <span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : 'cc57bc8f8ae7d537a7d57b83d498b98a',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

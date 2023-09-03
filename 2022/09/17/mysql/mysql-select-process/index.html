@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍MySQL的逻辑架构，引出一条select语句的执行流程">
+<meta property="og:type" content="article">
+<meta property="og:title" content="mysql select 的执行流程">
+<meta property="og:url" content="http://shaun2016.github.io/2022/09/17/mysql/mysql-select-process/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍MySQL的逻辑架构，引出一条select语句的执行流程">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/mysql/image-20220911035828494.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/mysql/image-20220917124719018.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/mysql/image-20220917130645020.png">
+<meta property="article:published_time" content="2022-09-17T05:51:21.000Z">
+<meta property="article:modified_time" content="2022-12-23T05:19:42.590Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="mysql">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/mysql/image-20220911035828494.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2022/09/17/mysql/mysql-select-process/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>mysql select 的执行流程 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2022/09/17/mysql/mysql-select-process/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          mysql select 的执行流程
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-09-17 13:51:21" itemprop="dateCreated datePublished" datetime="2022-09-17T13:51:21+08:00">2022-09-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-12-23 13:19:42" itemprop="dateModified" datetime="2022-12-23T13:19:42+08:00">2022-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/mysql/" itemprop="url" rel="index"><span itemprop="name">mysql</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍MySQL的逻辑架构，引出一条select语句的执行流程</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="mysql逻辑架构">MySQL逻辑架构</h2>
+<figure>
+<img src="/images/mysql/image-20220911035828494.png" alt="MySQL逻辑架构图">
+<figcaption aria-hidden="true">MySQL逻辑架构图</figcaption>
+</figure>
+<p>MySQL的逻辑架构可以分为<strong>Server层</strong>和<strong>存储引擎层</strong>两部分</p>
+<p>Server层包括连接器、查询缓存、分析器、优化器、执行器等；存储引擎层负责数据的存储和提取。其架构模式是插件式的，支持InnoDB、MyISAM、
+Memory等多个存储引擎</p>
+<p><strong>注：</strong>MySQL8.0将查询缓存删除</p>
+<h3 id="server-层">Server 层</h3>
+<h4 id="连接器">连接器</h4>
+<p>负责建立、维持、管理客户端的连接，权限认证</p>
+<h4 id="查询缓存">查询缓存</h4>
+<p>将之前执行过的查询语句及其结果以key-value对的形式缓存到内存中，如果能够直接在这个缓存中找到key，则直接返回查询结果</p>
+<p>只要有一个表的更新，这个表的查询缓存就会被清空，导致查询缓存的失效非常频繁，如果查询缓存的命中率非常低，则反而影响了效率</p>
+<p>MySQL8.0将查询缓存删除</p>
+<h4 id="分析器">分析器</h4>
+<p>对查询语句做语法分析</p>
+<h4 id="优化器">优化器</h4>
+<p>选择索引，join多表关联时，决定各表的连接顺序</p>
+<h4 id="执行器">执行器</h4>
+<ol type="1">
+<li>判断用户对表是否有执行查询的权限</li>
+<li>调用搜索引擎的接口取值</li>
+</ol>
+<h3 id="存储引擎层">存储引擎层</h3>
+<blockquote>
+<p>只讨论InnoDB</p>
+</blockquote>
+<p>Server层的执行器调用存储引擎的接口，如使用索引name查询name=Tom
+的记录，这个流程是什么样的呢</p>
+<p>首先介绍索引的类型，以及几种索引机制</p>
+<h4 id="索引类型">索引类型</h4>
+<figure>
+<img src="/images/mysql/image-20220917124719018.png" alt="image-20220917124719018">
+<figcaption aria-hidden="true">image-20220917124719018</figcaption>
+</figure>
+<p>索引类型分为主键索引（聚簇索引）和非主键索引（二级索引）</p>
+<ul>
+<li><p>如果语句是select * fromTwhere
+ID=500，主键查询方式，只需要搜索ID这棵B+树；</p></li>
+<li><p>如果语句是select * fromTwhere
+k=5，普通索引查询方式，需要先搜索k索引树，得到ID的值为500，再到ID索引树搜索一次。这个过程称为<strong>回表</strong></p></li>
+</ul>
+<blockquote>
+<p>可以看到回表会增加一次索引查询，在范围查询中，如select id, name from
+user where age &gt; 10，则需要回表很多次，如何避免回表，提高效率呢</p>
+</blockquote>
+<h4 id="覆盖索引">覆盖索引</h4>
+<p>如果select的字段在一个二级索引中已包含，则不需要回表，这个二级索引对于覆盖了查询需求的语句是一个覆盖索引</p>
+<p>如 select id, name, age from user where name like 'Jane%' and age
+&lt; 18; 建立一个联合索引A (name, age)，在A中，已经包含了要查询的id,
+name, age信息，无需回表</p>
+<h4 id="最左前缀匹配">最左前缀匹配</h4>
+<p>最左前缀匹配是针对联合索引而言</p>
+<p>如下，为(name, age)的联合索引</p>
+<figure>
+<img src="/images/mysql/image-20220917130645020.png" alt="image-20220917130645020">
+<figcaption aria-hidden="true">image-20220917130645020</figcaption>
+</figure>
+<p>索引项是按照索引定义里面出现的字段顺序排序的，匹配时按照从左至於的顺序匹配</p>
+<ul>
+<li>只要是联合索引的那几个条件与where子句中的条件匹配，都能应用对应的联合索引</li>
+<li>在有联合索引（a+b）和单列索引a同时存在时，通过a条件的查询会优先使用联合索引</li>
+<li>在联合索引（a+b）中无法只通过条件b查询，因为b无法匹配最左前缀，这时只能再建一个(b)索引</li>
+</ul>
+<h4 id="索引下推">索引下推</h4>
+<p>对于<code>mysql&gt; select * from user where name like '张%' and age=10 and ismale=1;</code></p>
+<p>在MySQL
+5.6之前，只能从第一个满足【张*】的记录开始一个个回表。到主键索引上找出数据行，再对比字段值</p>
+<p>而MySQL 5.6 引入的索引下推优化（index condition pushdown)，
+可以在索引遍历过程中，对索引中包含的字段先做判断，直接过滤掉不满足条件的记录，减少回表次数</p>
+<p>如联合索引 (name, age)，会找到 name 和 age 符合条件的 id，再回表</p>
+<blockquote>
+<p>根据上述的索引查找机制，对于一个查询，走哪个索引，是否要回表，就有了一定的认知，进而可以对一些场景进行优化</p>
+</blockquote>
+<h4 id="索引的优化">索引的优化</h4>
+<ul>
+<li>覆盖索引：对于频繁查询 select name, age from user where age between
+(10, 20)，建立联合索引（age, name）避免回表</li>
+<li>索引下推：对于查询 select * from user where name like '张%' and age
+&gt; 10; 建立联合索引（name,
+age），相对于单个name索引，可以减少回表次数</li>
+</ul>
+<blockquote>
+<p>题外话：在用户表中，有身份证号的字段，要不要用身份证号做主键</p>
+<p>分析：</p>
+<ol type="1">
+<li>身份证是无序的，在维护主键索引树的时候，需要挪动其他记录，引发叶分裂</li>
+<li>身份证号长度较大，主键长度越大，二级索引的叶子节点长度就越大，二级索引占用的空间就越大</li>
+</ol>
+<p>答案：不要</p>
+<p>用自增id做索引，在主键索引中，每次插入一条新记录，都是追加操作，不涉及到挪动其他记录，也不会触发叶子节点的分裂，相比于身份证长度要短:+1:</p>
+</blockquote>
+<h2 id="总结">总结</h2>
+<p>本文介绍了MySQL的逻辑架构，包括Server层和存储引擎层，Server层包括连接器、查询缓存、分析器、优化器、执行器；存储引擎层介绍了索引类型，如何通过索引找到记录，索引的一些机制，如覆盖索引、最左前缀匹配、索引下推，最后列举了两个索引的优化策略。一条select语句，就是通过Server层和索引层，最终找到对应的记录</p>
+<h2 id="参考文献">参考文献</h2>
+<p>mysql 45 讲 第1,4,5讲</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/mysql/" rel="tag"># mysql</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/11/mysql/mysql-update-process/" rel="prev" title="mysql update 的执行流程">
+      <i class="fa fa-chevron-left"></i> mysql update 的执行流程
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/10/08/io/io-model/" rel="next" title="三种IO模型">
+      三种IO模型 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#mysql%E9%80%BB%E8%BE%91%E6%9E%B6%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">MySQL逻辑架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#server-%E5%B1%82"><span class="nav-number">1.1.</span> <span class="nav-text">Server 层</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E5%99%A8"><span class="nav-number">1.1.1.</span> <span class="nav-text">连接器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E8%AF%A2%E7%BC%93%E5%AD%98"><span class="nav-number">1.1.2.</span> <span class="nav-text">查询缓存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%88%86%E6%9E%90%E5%99%A8"><span class="nav-number">1.1.3.</span> <span class="nav-text">分析器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BC%98%E5%8C%96%E5%99%A8"><span class="nav-number">1.1.4.</span> <span class="nav-text">优化器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E5%99%A8"><span class="nav-number">1.1.5.</span> <span class="nav-text">执行器</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E5%B1%82"><span class="nav-number">1.2.</span> <span class="nav-text">存储引擎层</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E7%B1%BB%E5%9E%8B"><span class="nav-number">1.2.1.</span> <span class="nav-text">索引类型</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%A6%86%E7%9B%96%E7%B4%A2%E5%BC%95"><span class="nav-number">1.2.2.</span> <span class="nav-text">覆盖索引</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9C%80%E5%B7%A6%E5%89%8D%E7%BC%80%E5%8C%B9%E9%85%8D"><span class="nav-number">1.2.3.</span> <span class="nav-text">最左前缀匹配</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E4%B8%8B%E6%8E%A8"><span class="nav-number">1.2.4.</span> <span class="nav-text">索引下推</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E7%9A%84%E4%BC%98%E5%8C%96"><span class="nav-number">1.2.5.</span> <span class="nav-text">索引的优化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">2.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-number">3.</span> <span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '9af65851f0670c62d648a274b8cdae65',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
