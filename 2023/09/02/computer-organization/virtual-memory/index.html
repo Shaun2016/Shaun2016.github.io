@@ -21,24 +21,23 @@
     var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
   </script>
 
-  <meta name="description" content="做饭、食谱、日常">
+  <meta name="description" content="本文简述操作系统的虚拟内存">
 <meta property="og:type" content="article">
-<meta property="og:title" content="做饭记录">
-<meta property="og:url" content="http://shaun2016.github.io/2022/06/06/make-food/index.html">
+<meta property="og:title" content="虚拟内存">
+<meta property="og:url" content="http://shaun2016.github.io/2023/09/02/computer-organization/virtual-memory/index.html">
 <meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
-<meta property="og:description" content="做饭、食谱、日常">
+<meta property="og:description" content="本文简述操作系统的虚拟内存">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://shaun2016.github.io/images/food/paigu.jpg">
-<meta property="og:image" content="http://shaun2016.github.io/images/food/xia.jpg">
-<meta property="og:image" content="http://shaun2016.github.io/images/food/kljc.jpg">
-<meta property="article:published_time" content="2022-06-06T14:40:16.000Z">
-<meta property="article:modified_time" content="2022-12-23T05:19:42.589Z">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/%E5%9B%BA%E5%AE%9A%E5%81%8F%E7%A7%BB%E9%87%8F.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/%E9%A1%B5%E4%B8%8E%E9%A1%B5%E5%B8%A7.drawio.png">
+<meta property="article:published_time" content="2023-09-02T08:13:26.000Z">
+<meta property="article:modified_time" content="2023-09-03T07:03:19.407Z">
 <meta property="article:author" content="Jiaming Zhang">
-<meta property="article:tag" content="food">
+<meta property="article:tag" content="linux">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://shaun2016.github.io/images/food/paigu.jpg">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/java/%E5%9B%BA%E5%AE%9A%E5%81%8F%E7%A7%BB%E9%87%8F.drawio.png">
 
-<link rel="canonical" href="http://shaun2016.github.io/2022/06/06/make-food/">
+<link rel="canonical" href="http://shaun2016.github.io/2023/09/02/computer-organization/virtual-memory/">
 
 
 <script id="page-configurations">
@@ -51,7 +50,7 @@
   };
 </script>
 
-  <title>做饭记录 | Jiaming Zhang's Blog</title>
+  <title>虚拟内存 | Jiaming Zhang's Blog</title>
   
 
 
@@ -199,7 +198,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2022/06/06/make-food/">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2023/09/02/computer-organization/virtual-memory/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -212,7 +211,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          做饭记录
+          虚拟内存
         </h1>
 
         <div class="post-meta">
@@ -222,14 +221,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-06-06 22:40:16" itemprop="dateCreated datePublished" datetime="2022-06-06T22:40:16+08:00">2022-06-06</time>
+              <time title="创建时间：2023-09-02 16:13:26" itemprop="dateCreated datePublished" datetime="2023-09-02T16:13:26+08:00">2023-09-02</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2022-12-23 13:19:42" itemprop="dateModified" datetime="2022-12-23T13:19:42+08:00">2022-12-23</time>
+                <time title="修改时间：2023-09-03 15:03:19" itemprop="dateModified" datetime="2023-09-03T15:03:19+08:00">2023-09-03</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -237,7 +236,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/food/" itemprop="url" rel="index"><span itemprop="name">food</span></a>
+                  <a href="/categories/linux/" itemprop="url" rel="index"><span itemprop="name">linux</span></a>
                 </span>
             </span>
 
@@ -253,40 +252,110 @@
 
       
         <blockquote>
-<p>做饭、食谱、日常</p>
+<p>本文简述操作系统的虚拟内存</p>
 </blockquote>
 <span id="more"></span>
-<h2 id="排骨-土豆-豆角">排骨 + 土豆 + 豆角</h2>
-<ol type="1">
-<li>排骨、葱、姜、料酒 放入凉水中，煮开，清洗沫子</li>
-<li>刷锅，加水、排骨、葱、姜、料酒、花椒（5粒）、大料（1粒）、桂片（半个）、香叶（1片），水没过排骨</li>
-<li>大火烧开，小火炖四十分钟，检查肉质</li>
-<li>肉快熟，放入生抽、老抽、豆角、土豆、盐、白糖，炖熟，至汤粘稠，出锅前放入鸡精，简单搅拌</li>
-</ol>
+<h3 id="逻辑地址与物理地址">逻辑地址与物理地址</h3>
+<p>地址：用 1
+字节将内存分成若干块，每一块头部的地址，称为内存的一个地址</p>
+<p>逻辑地址：也叫虚拟地址，是程序看到的内存地址，是连续的</p>
+<p>物理地址：实际的内存地址</p>
+<blockquote>
+<p>32位操作系统物理地址有 2^32 个，因此最大内存为 2^32 byte = 2 ^ 22 KB
+= 2^12 MB = 2^2 G = 4G，大于4G的内存地址在32位操作系统中无法表示</p>
+<p>任何一个32位程序的逻辑地址最多是2^32个</p>
+</blockquote>
+<p>为什么要有逻辑地址</p>
+<ul>
+<li>安全性：如果进程可以直接操作真实的内存地址，那可能两个进程同时修改同一个内存地址，导致系统崩溃</li>
+<li>隔离性：不同进程之间的逻辑地址是不可见的，也就无法访问其他进程的数据</li>
+<li>连续性：对程序而言，逻辑地址是连续的，方便进行地址计算</li>
+</ul>
+<h3 id="逻辑地址和物理地址的映射">逻辑地址和物理地址的映射</h3>
+<h4 id="映射思路">映射思路</h4>
+<p>方法一：固定偏移量</p>
 <figure>
-<img src="/images/food/paigu.jpg" alt="排骨豆角">
-<figcaption aria-hidden="true">排骨豆角</figcaption>
+<img src="/images/java/固定偏移量.drawio.png" alt="固定偏移量.drawio">
+<figcaption aria-hidden="true">固定偏移量.drawio</figcaption>
 </figure>
-<h2 id="水煮大虾">水煮大虾</h2>
+<p>缺点：</p>
 <ol type="1">
-<li>清水，放入葱姜料酒，开锅</li>
-<li>放入清理后的大虾，煮1分半至2分钟</li>
+<li>进程分配的内存必须是连续的，如果分配到了另一个进程的内存空间，只能重新申请一份更大的连续空间，并将数据拷贝过去</li>
+<li>产生很多内存碎片，内存利用率低</li>
 </ol>
+<p>方法二：分页</p>
+<blockquote>
+<p>固定偏移量法要求逻辑地址和对应的物理地址必须连续，这点很难实现，所以考虑将连续空间分解成若干小块，再进行对应</p>
+</blockquote>
+<p>将逻辑内存分为多个页（Page），物理内存分为多个叶帧（Page
+Frame），通过页表（Page Table）映射，页表中每个条目是一个 Page Table
+Entry（PTE）</p>
 <figure>
-<img src="/images/food/xia.jpg" alt="白灼虾">
-<figcaption aria-hidden="true">白灼虾</figcaption>
+<img src="/images/java/页与页帧.drawio.png" alt="页与页帧.drawio">
+<figcaption aria-hidden="true">页与页帧.drawio</figcaption>
 </figure>
-<h2 id="可乐鸡翅">可乐鸡翅</h2>
+<p>一个 Page
+的大小是多少呢，过大会产生碎片，过小要维护更多的映射关系。根据工业经验，Page
+大小是 4KB</p>
+<h4 id="page-table-如何完成地址映射">Page Table 如何完成地址映射？</h4>
+<p>现在我们有一个逻辑地址 x，想通过 Page
+Table（PT）查到对应的物理地址</p>
+<h5 id="方案1">方案1</h5>
+<p>PT 存储 Page 起始地址（Px）与 Page Frame（PFx）
+起始地址的映射关系（PT(Px)），那么逻辑地址 x 的物理地址为： <span class="math display">\[
+\begin{align*}
+&amp; PF_x = PT(P_x) + x-P_x \\
+&amp; P_x = x - x \% (4*2^{10})
+\end{align*}
+\]</span> 其中，x - Px 为 x 的在 Page 中的偏移量</p>
+<p>PT 存储一组映射关系，需要 32bit * 2 = 64bit = 8Byte</p>
+<h5 id="方案2">方案2</h5>
+<p>对于逻辑地址，PT 不在存储地址，而是页号 Page index，Page index
+的最大值是 4G/4KB - 1 = 2^20 - 1，需要用 20 bit 来存储；</p>
+<p>对于物理地址同理，那么物理地址的计算方法为： <span class="math display">\[
+\begin{align*}
+&amp; PF_x = PT(P_x)*4*2^{10} + x - P_x \\
+&amp; P_x = x - x\%(4*2^{10})
+\end{align*}
+\]</span> PT 存储一组映射关系，即一个PTE，需要 20bit * 2 = 40bit =
+5Byte</p>
+<p>比方案1一个PTE节省了3字节的空间，在4G内存中，这种设计的页表最大空间是：5Byte
+* 4G / 4KB = 5 MB</p>
+<blockquote>
+<p>地址映射利用了逻辑地址的线性特征</p>
+</blockquote>
+<h3 id="页面置换">页面置换</h3>
+<p>由于逻辑内存是进程间隔离的，每个进程都认为自己有完整内存空间的逻辑内存，就存在物理内存不够用的情况，当物理内存不够用时，将不常用的内存页面交换到磁盘上，再把这些内存释放和分配给进程。在
+Linux 系统中，可以通过 Swap 分区（Swap Partition）启用Page
+与磁盘交互，Swap
+分区是硬盘上的独立区域，只能用于交换分区，不能存储其他文件</p>
+<p>常见的页面置换算法有：</p>
 <ol type="1">
-<li>清洗、背部划口</li>
-<li>抄水，锅热加油，煎至焦黄</li>
-<li>加葱姜可乐半罐，盐，酱油，炖二十分钟</li>
+<li>先进先出（FIFO）页面置换算法：淘汰最先进入内存的页面</li>
+<li>最不常用（Least Recently Used,
+LRU）页面置换算法：选择最长时间未被使用的页面予以淘汰</li>
+<li>工作集（Working
+Set）页面置换算法：选择当前工作进程实际需要的页面予以保留，淘汰其他页面</li>
 </ol>
-<figure>
-<img src="/images/food/kljc.jpg" alt="可乐鸡翅">
-<figcaption aria-hidden="true">可乐鸡翅</figcaption>
-</figure>
-<p>待续...</p>
+<h3 id="page-fault">Page Fault</h3>
+<p>Page
+Fault（缺页异常）是指当程序访问内存时，所访问的页面不在物理内存中，而是被交换到硬盘上。这时，操作系统会触发
+trap
+机制，进入内核状态，然后通过相应的处理函数将该页面重新加载到内存中，再返回到用户态，继续执行程序。缺页异常是一种实现虚拟内存的重要机制。</p>
+<h3 id="页表优化">页表优化</h3>
+<p>虚拟内存扩展了可用内存，提高了内存使用的安全性，但增多了一步地址转换的步骤，影响了访问内存效率；同时页表自身也占用一定的内存，下面从时间和空间两个角度对页表进行优化</p>
+<h4 id="时间优化">时间优化</h4>
+<p>TLB（Translation Lookaside
+Buffer）是内存中用于实现虚拟地址到物理地址映射的缓存，是MMU（Memory
+Management
+Unit）的一部分。TLB是一个高速缓存，它存储了当前最可能被访问到的页表项的一个副本，因此可以加快地址翻译的速度，提高处理器性能。当需要将虚拟地址翻译成物理地址时，MMU首先会在TLB中查找是否有匹配的条目，如果有，则称为TLB
+hit，直接使用TLB中保存的结果；否则，MMU需要访问页表，进行慢速的地址翻译，这会产生较大的开销</p>
+<h4 id="空间优化">空间优化</h4>
+<p>多级页表</p>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/631077382">Linux
+内存管理（一）--虚拟内存</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/627993691">Linux内核：内存管理——多级页表</a></p>
 
     </div>
 
@@ -296,7 +365,7 @@
 
       <footer class="post-footer">
           <div class="post-tags">
-              <a href="/tags/food/" rel="tag"># food</a>
+              <a href="/tags/linux/" rel="tag"># linux</a>
           </div>
 
         
@@ -305,12 +374,12 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2022/05/31/algorithm/heap/" rel="prev" title="数据结构-堆">
-      <i class="fa fa-chevron-left"></i> 数据结构-堆
+    <a href="/2023/07/21/java/graceful-shutdwon/" rel="prev" title="jvm 优雅停机">
+      <i class="fa fa-chevron-left"></i> jvm 优雅停机
     </a></div>
       <div class="post-nav-item">
-    <a href="/2022/06/11/algorithm/heap-question/" rel="next" title="算法-堆">
-      算法-堆 <i class="fa fa-chevron-right"></i>
+    <a href="/2023/09/02/redis/redis-rdb/" rel="next" title="redis RDB 持久化原理">
+      redis RDB 持久化原理 <i class="fa fa-chevron-right"></i>
     </a></div>
     </div>
       </footer>
@@ -371,7 +440,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%92%E9%AA%A8-%E5%9C%9F%E8%B1%86-%E8%B1%86%E8%A7%92"><span class="nav-number">1.</span> <span class="nav-text">排骨 + 土豆 + 豆角</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B0%B4%E7%85%AE%E5%A4%A7%E8%99%BE"><span class="nav-number">2.</span> <span class="nav-text">水煮大虾</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%AF%E4%B9%90%E9%B8%A1%E7%BF%85"><span class="nav-number">3.</span> <span class="nav-text">可乐鸡翅</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E4%B8%8E%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80"><span class="nav-number">1.</span> <span class="nav-text">逻辑地址与物理地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E5%92%8C%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-number">2.</span> <span class="nav-text">逻辑地址和物理地址的映射</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%98%A0%E5%B0%84%E6%80%9D%E8%B7%AF"><span class="nav-number">2.1.</span> <span class="nav-text">映射思路</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#page-table-%E5%A6%82%E4%BD%95%E5%AE%8C%E6%88%90%E5%9C%B0%E5%9D%80%E6%98%A0%E5%B0%84"><span class="nav-number">2.2.</span> <span class="nav-text">Page Table 如何完成地址映射？</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%96%B9%E6%A1%881"><span class="nav-number">2.2.1.</span> <span class="nav-text">方案1</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%96%B9%E6%A1%882"><span class="nav-number">2.2.2.</span> <span class="nav-text">方案2</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E9%9D%A2%E7%BD%AE%E6%8D%A2"><span class="nav-number">3.</span> <span class="nav-text">页面置换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#page-fault"><span class="nav-number">4.</span> <span class="nav-text">Page Fault</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E8%A1%A8%E4%BC%98%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">页表优化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%B6%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.1.</span> <span class="nav-text">时间优化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A9%BA%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.2.</span> <span class="nav-text">空间优化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number"></span> <span class="nav-text">Reference</span></a></div>
       </div>
       <!--/noindex-->
 
@@ -385,20 +454,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">53</span>
+          <span class="site-state-item-count">49</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-count">13</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-count">32</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
@@ -557,7 +626,7 @@ NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
       repo        : 'Shaun2016.github.io',
       owner       : 'Shaun2016',
       admin       : ['Shaun2016'],
-      id          : '2204d4972bcb7d6d2e4d14d74846c50d',
+      id          : '78cbe93220e1cf44d74600955fb61a26',
         language: 'zh-CN',
       distractionFreeMode: true
     });
