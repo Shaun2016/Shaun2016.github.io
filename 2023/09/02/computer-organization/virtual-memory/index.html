@@ -30,8 +30,10 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://shaun2016.github.io/images/java/%E5%9B%BA%E5%AE%9A%E5%81%8F%E7%A7%BB%E9%87%8F.drawio.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/java/%E9%A1%B5%E4%B8%8E%E9%A1%B5%E5%B8%A7.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/%E4%BA%8C%E7%BA%A7%E9%A1%B5%E8%A1%A8.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/image-20231001182937769.png">
 <meta property="article:published_time" content="2023-09-02T08:13:26.000Z">
-<meta property="article:modified_time" content="2023-09-03T07:03:19.407Z">
+<meta property="article:modified_time" content="2023-10-01T10:58:48.020Z">
 <meta property="article:author" content="Jiaming Zhang">
 <meta property="article:tag" content="linux">
 <meta name="twitter:card" content="summary">
@@ -228,7 +230,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-09-03 15:03:19" itemprop="dateModified" datetime="2023-09-03T15:03:19+08:00">2023-09-03</time>
+                <time title="修改时间：2023-10-01 18:58:48" itemprop="dateModified" datetime="2023-10-01T18:58:48+08:00">2023-10-01</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -295,34 +297,36 @@ Entry（PTE）</p>
 <figcaption aria-hidden="true">页与页帧.drawio</figcaption>
 </figure>
 <p>一个 Page
-的大小是多少呢，过大会产生碎片，过小要维护更多的映射关系。根据工业经验，Page
+的大小：过大会产生碎片，过小要维护更多的映射关系。根据工业经验，Page
 大小是 4KB</p>
 <h4 id="page-table-如何完成地址映射">Page Table 如何完成地址映射？</h4>
 <p>现在我们有一个逻辑地址 x，想通过 Page
-Table（PT）查到对应的物理地址</p>
-<h5 id="方案1">方案1</h5>
-<p>PT 存储 Page 起始地址（Px）与 Page Frame（PFx）
-起始地址的映射关系（PT(Px)），那么逻辑地址 x 的物理地址为： <span class="math display">\[
+Table（PT）查到对应的物理地址，PT 的数据结构可以是字典，key =
+逻辑地址，通过散列算法进行映射，但是存在散列冲突和重平衡的问题；或者是一个线性表，长度为Page
+的个数，由于 Page 大小固定，通过计算偏移量得到 Page
+在线性表中对应的坐标，线性表一个单元存储物理地址，或者存物理地址 Page
+Frame 的偏移量，如果保存物理地址（最大值为 2^32-1）需要用 32 bit
+存储；如果存储 Page Frame 的偏移量，则最大偏移量为 4G/4KB - 1 = 2^20 -
+1，需要用 20 bit 来存储</p>
+<p>所以选择存储偏移量，比存储物理地址占用的空间少，这样，物理地址的计算方法为：
+<span class="math display">\[
 \begin{align*}
-&amp; PF_x = PT(P_x) + x-P_x \\
-&amp; P_x = x - x \% (4*2^{10})
+&amp; PF_x = PT(P_x)*4*2^{10} + x\%(4*2^{10})
 \end{align*}
-\]</span> 其中，x - Px 为 x 的在 Page 中的偏移量</p>
-<p>PT 存储一组映射关系，需要 32bit * 2 = 64bit = 8Byte</p>
-<h5 id="方案2">方案2</h5>
-<p>对于逻辑地址，PT 不在存储地址，而是页号 Page index，Page index
-的最大值是 4G/4KB - 1 = 2^20 - 1，需要用 20 bit 来存储；</p>
-<p>对于物理地址同理，那么物理地址的计算方法为： <span class="math display">\[
-\begin{align*}
-&amp; PF_x = PT(P_x)*4*2^{10} + x - P_x \\
-&amp; P_x = x - x\%(4*2^{10})
-\end{align*}
-\]</span> PT 存储一组映射关系，即一个PTE，需要 20bit * 2 = 40bit =
-5Byte</p>
-<p>比方案1一个PTE节省了3字节的空间，在4G内存中，这种设计的页表最大空间是：5Byte
-* 4G / 4KB = 5 MB</p>
+\]</span> 其中，Px 为 x 所在 Page 的下标，PT(Px) 为 x 对应的物 PF
+的下标，再转换为物理地址：即下标 * 一叶帧的大小得到 PF 的 head
+地址，再加上 x 在 Page 中的偏移量：x%(4*2^10)</p>
+<p>虽说如何，但是直接存储物理地址更快，所以目前都是直接存储物理地址</p>
 <blockquote>
 <p>地址映射利用了逻辑地址的线性特征</p>
+</blockquote>
+<blockquote>
+<p>问题1：一个进程的页表是一次性建好，还是进程申请内存多少，就创建多少呢？为什么</p>
+<p>答：不确定</p>
+<p>问题2：页表占用多少内存空间</p>
+<p>思考：比如在32位操作系统中，一个进程的页表最多有2<sup>20个，对应的页表最多有2</sup>20个PTE，如果一次性创建长度为2^20的页表，为了方便计算，我们先设一个PTE大小为4Byte，则页表的总空间为
+2^20 * 4B =
+4MB需要4M的内存空间，当有很多进程同时运行时，是一个很大的开销</p>
 </blockquote>
 <h3 id="页面置换">页面置换</h3>
 <p>由于逻辑内存是进程间隔离的，每个进程都认为自己有完整内存空间的逻辑内存，就存在物理内存不够用的情况，当物理内存不够用时，将不常用的内存页面交换到磁盘上，再把这些内存释放和分配给进程。在
@@ -351,11 +355,56 @@ Management
 Unit）的一部分。TLB是一个高速缓存，它存储了当前最可能被访问到的页表项的一个副本，因此可以加快地址翻译的速度，提高处理器性能。当需要将虚拟地址翻译成物理地址时，MMU首先会在TLB中查找是否有匹配的条目，如果有，则称为TLB
 hit，直接使用TLB中保存的结果；否则，MMU需要访问页表，进行慢速的地址翻译，这会产生较大的开销</p>
 <h4 id="空间优化">空间优化</h4>
-<p>多级页表</p>
+<p>上文说过，由于一级页表需要一次性加载完整的页表，对内存的占用很大，页表中很多PTE是空的，导致利用率很低；而一级页表的线性访问又不能将不用的PTE删除掉</p>
+<h5 id="二级页表">二级页表</h5>
+<blockquote>
+<p>二级页表的思路：</p>
+<p>有6个年级，每个年级5个班级，要记录这30个班级，在一级页表的场景中，是创建一个长度为30的表；不过老师们查看班级时基本都只关心本年级的班级，不需要完整的表，所以按照年级创建6个表，额外再创建一个表，表示班级要去哪个年级表中查看。这样，一位老师查看时，会返回一个只有5条记录的表</p>
+</blockquote>
+<p>具体实现方式：</p>
+<p>将虚拟地址的32位分为前10位、中间10位、最后12位</p>
+<p>前10位作为一级页表（PGD）的索引映射到二级页表，中间10位作为二级页表（PTE）的索引映射到页帧的起始地址，最后12位是页内偏移</p>
+<p>物理地址的寻址过程如下图</p>
+<figure>
+<img src="/images/java/二级页表.drawio.png" alt="二级页表.drawio">
+<figcaption aria-hidden="true">二级页表.drawio</figcaption>
+</figure>
+<p>通过虚拟地址的高10位（可表示0 -
+1023），定位到在哪个二级页表中，然后通过中间10位，在对应的二级页表中找到对应的页帧起始地址，最后通过低12位，计算页内偏移量，最后，物理地址
+= 页帧起始地址 + 页内偏移量；这个寻址过程被称为 page table walk</p>
+<p>这种方式看起来只是将之前的一级页面拆成了1024个二级页表，但总的空间没有减少，还加入了地址转换的逻辑，但1024个二级页表不需要同时加载到内存，需要加载一小部分二级页表，其余的页表持久化在磁盘，需要时再加载即可；假设我们最多允许1个二级页表在内存中，需要的内存计算如下：每个页表中有2^10个PTE，一个
+PTE 为4B，需要内存 4KB，相比之前只有一级页表的 4M
+节约了很大的内存空间（emmm...直接 4M/1024 更简单）</p>
+<h5 id="三级页表">三级页表</h5>
+<p>当X86引入物理地址扩展(Pisycal Addrress Extension,
+PAE)后，可以支持大于4G的物理内存(36位），但虚拟地址依然是32位，原先的页表项不适用，页表项从
+4Byte 被扩充到
+8Byte，这意味着，每一页现在能存放的pte数目从1024变成512了。相应地，页表层级发生了变化，Linus新增加了一个层级，叫做页中间目录(page
+middle directory, PMD)</p>
+<h5 id="四级页表">四级页表</h5>
+<p>64位操作系统中支持了48位的虚拟地址空间，将虚拟地址分为以下五个部分：</p>
+<p>PGD：Page Global Directory（47-39），页全局目录 PUD：Page Upper
+Directory（38-30），页上级目录 PMD：Page Middle
+Directory（29-21），页中间目录 PTE：Page Table Entry（20-12），页表项
+page offset: 偏移量</p>
+<figure>
+<img src="/images/java/image-20231001182937769.png" alt="image-20231001182937769">
+<figcaption aria-hidden="true">image-20231001182937769</figcaption>
+</figure>
+<p>三级/四级页表产生的背景、原理还没有弄清楚，但思路和二级页表是一样的</p>
+<h4 id="局部性原理">局部性原理</h4>
+<p>上述的时间优化和空间优化，都是利用了局部性原理：</p>
+<p>局部性原理是指CPU访问存储器时，无论是存取指令还是存取数据，所访问的存储单元都趋于聚集在一个较小的连续区域中。具体可以分为时间局部性和空间局部性：</p>
+<ol type="1">
+<li>时间局部性：如果程序中的某条指令一旦执行，则不久之后该指令可能再次被执行；如果某数据被访问，则不久之后该数据可能再次被访问</li>
+<li>空间局部性：是指一旦程序访问了某个存储单元，则不久之后，其附近的存储单元也将被访问</li>
+</ol>
 <h2 id="reference">Reference</h2>
 <p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/631077382">Linux
 内存管理（一）--虚拟内存</a></p>
 <p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/627993691">Linux内核：内存管理——多级页表</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/639166670">多级页表为什么可以省空间？</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/645063459">详解虚拟内存如何与物理内存进行映射</a></p>
 
     </div>
 
@@ -440,7 +489,7 @@ hit，直接使用TLB中保存的结果；否则，MMU需要访问页表，进�
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E4%B8%8E%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80"><span class="nav-number">1.</span> <span class="nav-text">逻辑地址与物理地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E5%92%8C%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-number">2.</span> <span class="nav-text">逻辑地址和物理地址的映射</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%98%A0%E5%B0%84%E6%80%9D%E8%B7%AF"><span class="nav-number">2.1.</span> <span class="nav-text">映射思路</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#page-table-%E5%A6%82%E4%BD%95%E5%AE%8C%E6%88%90%E5%9C%B0%E5%9D%80%E6%98%A0%E5%B0%84"><span class="nav-number">2.2.</span> <span class="nav-text">Page Table 如何完成地址映射？</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%96%B9%E6%A1%881"><span class="nav-number">2.2.1.</span> <span class="nav-text">方案1</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%96%B9%E6%A1%882"><span class="nav-number">2.2.2.</span> <span class="nav-text">方案2</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E9%9D%A2%E7%BD%AE%E6%8D%A2"><span class="nav-number">3.</span> <span class="nav-text">页面置换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#page-fault"><span class="nav-number">4.</span> <span class="nav-text">Page Fault</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E8%A1%A8%E4%BC%98%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">页表优化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%B6%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.1.</span> <span class="nav-text">时间优化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A9%BA%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.2.</span> <span class="nav-text">空间优化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number"></span> <span class="nav-text">Reference</span></a></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E4%B8%8E%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80"><span class="nav-number">1.</span> <span class="nav-text">逻辑地址与物理地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9C%B0%E5%9D%80%E5%92%8C%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-number">2.</span> <span class="nav-text">逻辑地址和物理地址的映射</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%98%A0%E5%B0%84%E6%80%9D%E8%B7%AF"><span class="nav-number">2.1.</span> <span class="nav-text">映射思路</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#page-table-%E5%A6%82%E4%BD%95%E5%AE%8C%E6%88%90%E5%9C%B0%E5%9D%80%E6%98%A0%E5%B0%84"><span class="nav-number">2.2.</span> <span class="nav-text">Page Table 如何完成地址映射？</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E9%9D%A2%E7%BD%AE%E6%8D%A2"><span class="nav-number">3.</span> <span class="nav-text">页面置换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#page-fault"><span class="nav-number">4.</span> <span class="nav-text">Page Fault</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E8%A1%A8%E4%BC%98%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">页表优化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%B6%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.1.</span> <span class="nav-text">时间优化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A9%BA%E9%97%B4%E4%BC%98%E5%8C%96"><span class="nav-number">5.2.</span> <span class="nav-text">空间优化</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%BA%8C%E7%BA%A7%E9%A1%B5%E8%A1%A8"><span class="nav-number">5.2.1.</span> <span class="nav-text">二级页表</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%B8%89%E7%BA%A7%E9%A1%B5%E8%A1%A8"><span class="nav-number">5.2.2.</span> <span class="nav-text">三级页表</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%9B%9B%E7%BA%A7%E9%A1%B5%E8%A1%A8"><span class="nav-number">5.2.3.</span> <span class="nav-text">四级页表</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B1%80%E9%83%A8%E6%80%A7%E5%8E%9F%E7%90%86"><span class="nav-number">5.3.</span> <span class="nav-text">局部性原理</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number"></span> <span class="nav-text">Reference</span></a></div>
       </div>
       <!--/noindex-->
 
