@@ -23,13 +23,13 @@
 
   <meta name="description" content="本文简述 Dubbo 的负载均衡的几种策略">
 <meta property="og:type" content="article">
-<meta property="og:title" content="dubbo 负载均衡策略">
+<meta property="og:title" content="Jiaming Zhang&#39;s Blog">
 <meta property="og:url" content="http://shaun2016.github.io/2023/11/14/dubbo/dubbo-loadbalance/index.html">
 <meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
 <meta property="og:description" content="本文简述 Dubbo 的负载均衡的几种策略">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2023-11-14T09:50:00.000Z">
-<meta property="article:modified_time" content="2023-11-14T14:20:36.312Z">
+<meta property="article:modified_time" content="2023-11-15T15:59:12.358Z">
 <meta property="article:author" content="Jiaming Zhang">
 <meta property="article:tag" content="load-balance">
 <meta name="twitter:card" content="summary">
@@ -47,7 +47,7 @@
   };
 </script>
 
-  <title>dubbo 负载均衡策略 | Jiaming Zhang's Blog</title>
+  <title> | Jiaming Zhang's Blog</title>
   
 
 
@@ -208,7 +208,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          dubbo 负载均衡策略
+          
         </h1>
 
         <div class="post-meta">
@@ -217,10 +217,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2023-11-14 17:50:00 / 修改时间：22:20:36" itemprop="dateCreated datePublished" datetime="2023-11-14T17:50:00+08:00">2023-11-14</time>
+              <time title="创建时间：2023-11-14 17:50:00" itemprop="dateCreated datePublished" datetime="2023-11-14T17:50:00+08:00">2023-11-14</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-11-15 23:59:12" itemprop="dateModified" datetime="2023-11-15T23:59:12+08:00">2023-11-15</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -258,6 +264,7 @@ invoker 对象，在使用某种负载均衡策略选择一个 invoker 提供服
 <li>LeastActive：最少活跃调用数</li>
 <li>ShortestResponse：</li>
 <li>ConsistentHash：一致性哈希</li>
+<li>P2C：Power of Two Choice</li>
 <li>Adaptive：自适应</li>
 </ul>
 <h3 id="random">Random</h3>
@@ -326,12 +333,14 @@ c</strong>，平滑加权轮询保证权重分配不变，且分配更平滑</p>
 <h3 id="consitenthash">ConsitentHash</h3>
 <p>将请求参数或标识进行哈希计算，选择哈希值最接近的 invoker</p>
 <p>由客户端请求决定分配情况，适用于用户和服务节点反复通讯的场景</p>
-<h3 id="adaptive">Adaptive</h3>
-<p>基于 P2C 思想实现的负载均衡策略</p>
-<blockquote>
-<p>P2C（Pick Of 2
-Choices）是一种基于随机选择的策略，在多个节点中，随机选择两个节点，然后根据某种条件，如平均响应时间，选择其中一个节点。这种思想的目标是实现负载均衡，同时考虑到节点的健康状况，以确保请求被发送到可用且负载较轻的节点上</p>
-</blockquote>
+<h3 id="p2c">P2C</h3>
+<p>Power of Two Choice 算法简单但是经典，主要思路如下：</p>
+<ol type="1">
+<li>对于每次调用，从可用的 invoker 列表中做两次随机选择，选出两个节点
+invokerA 和 invokerB</li>
+<li>比较 invokerA 和 invokerB
+两个节点，选择当前正在处理的连接数较小的那个节点</li>
+</ol>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> &lt;T&gt; Invoker&lt;T&gt; <span class="title function_">selectByP2C</span><span class="params">(List&lt;Invoker&lt;T&gt;&gt; invokers, Invocation invocation)</span>&#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">length</span> <span class="operator">=</span> invokers.size();</span><br><span class="line">    <span class="keyword">if</span>(length == <span class="number">1</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> invokers.get(<span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(length == <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> chooseLowLoadInvoker(invokers.get(<span class="number">0</span>),invokers.get(<span class="number">1</span>),invocation);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> <span class="variable">pos1</span> <span class="operator">=</span> ThreadLocalRandom.current().nextInt(length);</span><br><span class="line">    <span class="type">int</span> <span class="variable">pos2</span> <span class="operator">=</span> ThreadLocalRandom.current().nextInt(length - <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span> (pos2 &gt;= pos1) &#123;</span><br><span class="line">        pos2 = pos2 + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> chooseLowLoadInvoker(invokers.get(pos1),invokers.get(pos2),invocation);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <blockquote>
 <p>Q：为什么 pos2 要从 [0, len - 1] 取随机数呢？</p>
@@ -340,6 +349,12 @@ Choices）是一种基于随机选择的策略，在多个节点中，随机选�
 吗？</p>
 <p>A：通过实验验证不会小于其他 invoker</p>
 </blockquote>
+<h3 id="adaptive">Adaptive</h3>
+<p>基于 P2C 思想实现的负载均衡策略</p>
+<ol type="1">
+<li>从备选列表中做两次随机选择，得到 invokerA 和 invokerB</li>
+<li>比较 invokerA 和 invokerB 的负载值，选择较小的那个</li>
+</ol>
 <h3 id="自定义策略">自定义策略</h3>
 <p>继承 AbstractLoadBalance，实现 doSelect 方法</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">MyLoadBalance</span> <span class="keyword">extends</span> <span class="title class_">AbstractLoadBalance</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">String</span> <span class="variable">NAME</span> <span class="operator">=</span> <span class="string">&quot;my_random&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">protected</span> &lt;T&gt; Invoker&lt;T&gt; <span class="title function_">doSelect</span><span class="params">(List&lt;Invoker&lt;T&gt;&gt; invokers, URL url, Invocation invocation)</span> &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; invokers.size(); i++) &#123;</span><br><span class="line">            System.out.println(<span class="string">&quot;MyLoadBalance invoker: &quot;</span> + invokers.get(i));</span><br><span class="line">            System.out.println(<span class="string">&quot;MyLoadBalance invoker ip: &quot;</span> + invokers.get(i).getUrl().getIp());</span><br><span class="line">            <span class="type">String</span> <span class="variable">index</span> <span class="operator">=</span> url.getParameter(<span class="string">&quot;index&quot;</span>);</span><br><span class="line">            <span class="keyword">if</span> (Strings.isNotBlank(index)) &#123;</span><br><span class="line">                <span class="keyword">if</span> (Integer.valueOf(i).equals(Integer.valueOf(index))) &#123;</span><br><span class="line">                    <span class="keyword">return</span> invokers.get(i);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> invokers.get(<span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -504,7 +519,7 @@ Choices）是一种基于随机选择的策略，在多个节点中，随机选�
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#dubbo-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-number">1.</span> <span class="nav-text">Dubbo 负载均衡的原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#dubbo-%E6%8F%90%E4%BE%9B%E7%9A%84%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%AD%96%E7%95%A5"><span class="nav-number">2.</span> <span class="nav-text">Dubbo 提供的负载均衡策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#random"><span class="nav-number">2.1.</span> <span class="nav-text">Random</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#roundrobin"><span class="nav-number">2.2.</span> <span class="nav-text">RoundRobin</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#leastactive"><span class="nav-number">2.3.</span> <span class="nav-text">leastActive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#shortestresponse"><span class="nav-number">2.4.</span> <span class="nav-text">ShortestResponse</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#consitenthash"><span class="nav-number">2.5.</span> <span class="nav-text">ConsitentHash</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#adaptive"><span class="nav-number">2.6.</span> <span class="nav-text">Adaptive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E7%AD%96%E7%95%A5"><span class="nav-number">2.7.</span> <span class="nav-text">自定义策略</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E5%90%8C%E7%AD%96%E7%95%A5%E7%9A%84%E6%AF%94%E8%BE%83"><span class="nav-number">3.</span> <span class="nav-text">不同策略的比较</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#dubbo-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-number">1.</span> <span class="nav-text">Dubbo 负载均衡的原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#dubbo-%E6%8F%90%E4%BE%9B%E7%9A%84%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%AD%96%E7%95%A5"><span class="nav-number">2.</span> <span class="nav-text">Dubbo 提供的负载均衡策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#random"><span class="nav-number">2.1.</span> <span class="nav-text">Random</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#roundrobin"><span class="nav-number">2.2.</span> <span class="nav-text">RoundRobin</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#leastactive"><span class="nav-number">2.3.</span> <span class="nav-text">leastActive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#shortestresponse"><span class="nav-number">2.4.</span> <span class="nav-text">ShortestResponse</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#consitenthash"><span class="nav-number">2.5.</span> <span class="nav-text">ConsitentHash</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#p2c"><span class="nav-number">2.6.</span> <span class="nav-text">P2C</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#adaptive"><span class="nav-number">2.7.</span> <span class="nav-text">Adaptive</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E7%AD%96%E7%95%A5"><span class="nav-number">2.8.</span> <span class="nav-text">自定义策略</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E5%90%8C%E7%AD%96%E7%95%A5%E7%9A%84%E6%AF%94%E8%BE%83"><span class="nav-number">3.</span> <span class="nav-text">不同策略的比较</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
