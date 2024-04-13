@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="Disruptor 是 LMAX 公司开发的一个高性能队列，开发初衷是解决 Java 提供的内存队列的延迟问题。目前有很多知名项目都应用了 Disruptor 以获得高性能，包括 Apache Storm、Camel、Log4j2 等，大量项目借鉴了它的设计机制，故了解 Disruptor 的实现原理是有必要的 这里所说的队列，是系统内部的内存队列，不是分布式队列 本文代码基于 disrupto">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Disruptor 介绍与原理解析">
+<meta property="og:url" content="http://shaun2016.github.io/2024/04/13/java/disruptor/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="Disruptor 是 LMAX 公司开发的一个高性能队列，开发初衷是解决 Java 提供的内存队列的延迟问题。目前有很多知名项目都应用了 Disruptor 以获得高性能，包括 Apache Storm、Camel、Log4j2 等，大量项目借鉴了它的设计机制，故了解 Disruptor 的实现原理是有必要的 这里所说的队列，是系统内部的内存队列，不是分布式队列 本文代码基于 disrupto">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/image-20240225155345326.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/sequence.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/sequencer.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/nextValue.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/jvm/ring_buffer.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/source/images/jvm/disruptor-flow.drawio.png">
+<meta property="article:published_time" content="2024-04-13T15:01:12.000Z">
+<meta property="article:modified_time" content="2024-04-13T15:17:03.442Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="java">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/jvm/image-20240225155345326.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2024/04/13/java/disruptor/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Disruptor 介绍与原理解析 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2024/04/13/java/disruptor/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Disruptor 介绍与原理解析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-13 23:01:12 / 修改时间：23:17:03" itemprop="dateCreated datePublished" datetime="2024-04-13T23:01:12+08:00">2024-04-13</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index"><span itemprop="name">java</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>Disruptor 是 LMAX 公司开发的一个高性能队列，开发初衷是解决 Java
+提供的内存队列的延迟问题。目前有很多知名项目都应用了 Disruptor
+以获得高性能，包括 Apache Storm、Camel、Log4j2
+等，大量项目借鉴了它的设计机制，故了解 Disruptor
+的实现原理是有必要的</p>
+<p>这里所说的队列，是系统内部的内存队列，不是分布式队列</p>
+<p>本文代码基于 disruptor:4.0.0
+源码地址：https://github.com/LMAX-Exchange/disruptor</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="java-内存队列存在的延迟问题">Java 内存队列存在的延迟问题</h2>
+<p>并发场景下，多个线程操作一个队列，需要考虑线程安全问题。jdk
+提供的线程安全队列，Java的内置队列如下表所示</p>
+<table>
+<thead>
+<tr class="header">
+<th>内置队列</th>
+<th>有界性</th>
+<th>数据结构</th>
+<th>线程安全方案</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ArrayBlockingQueue</td>
+<td>有界</td>
+<td>加锁</td>
+<td>arraylist</td>
+</tr>
+<tr class="even">
+<td>LinkedBlockingQueue</td>
+<td>可选</td>
+<td>加锁</td>
+<td>linkedlist</td>
+</tr>
+<tr class="odd">
+<td>ConcurrentLinkedQueue</td>
+<td>无界</td>
+<td>无锁</td>
+<td>linkedlist</td>
+</tr>
+<tr class="even">
+<td>LinkedTransferQueue</td>
+<td>无界</td>
+<td>无锁</td>
+<td>linkedlist</td>
+</tr>
+<tr class="odd">
+<td>PriorityBlockingQueue</td>
+<td>无界</td>
+<td>加锁</td>
+<td>heap</td>
+</tr>
+<tr class="even">
+<td>DelayQueue</td>
+<td>无界</td>
+<td>加锁</td>
+<td>heap</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gc-与访问速度">GC 与访问速度</h3>
+<p>由于链表结构相比于数组，更容易出现内存碎片，更容易触发垃圾回收，而且一般队列在使用中，都是
+FIFO
+生产消费场景，很少会遇到中间插入/删除的情况，所以数组比链表有更高的内存利用率和更少的
+GC 次数</p>
+<p>另外，连续的内存空间可以通过索引定位，比链表有更快的访问速度</p>
+<h3 id="加锁与cas的性能比较">加锁与CAS的性能比较</h3>
+<p>加锁采用悲观锁的思想，认为线程会冲突，对数据操作之前，先加锁再执行，执行之后解锁，同时只有一个线程持有锁和访问数据</p>
+<p>CAS
+采用乐观锁的思想，认为线程不会冲突，先执行，记录数据最初的值，执行完给数据赋值时，比较数据当前值与最初值是否一致，如果一致，则这期间没有其他线程操作，或无效操作，可以赋值；如果不一致，则放弃赋值，重新执行，直到赋值成功。CAS
+是 CPU 的一个指令，由 CPU 保证原子性</p>
+<blockquote>
+<p>可以发现，如果执行动作很轻量，CAS
+的成本更低，如果执行动作很耗时，应该选择加锁</p>
+</blockquote>
+<p>ArrayBlockingQueue
+通过加锁控制并发，竞争锁会导致线程挂起、等待、恢复，这个过程存在很大开销，对性能有严重的影响</p>
+<p>这里直接参考 Disruptor 论文中的实验数据：</p>
+<figure>
+<img src="/images/jvm/image-20240225155345326.png" alt="image-20240225155345326">
+<figcaption aria-hidden="true">image-20240225155345326</figcaption>
+</figure>
+<p>从上图可知：</p>
+<p>单线程：不加锁的性能 &gt; CAS操作的性能 &gt; 加锁的性能</p>
+<p>多线程：CAS操作的性能 &gt; 加锁的性能</p>
+<p>所以加锁的性能是最差的</p>
+<h3 id="伪共享">伪共享</h3>
+<h4 id="多级缓存">多级缓存</h4>
+<p>为了解决 cpu 处理速度与内存访问速度的差异，cpu 设置了 L1、L2、L3
+三级缓存，越靠近 cpu 的缓存，速度越快，容量越小。当 CPU
+读取数据时，会先到 L1 查找，如果没有再去
+L2、L3，最后是内存，走的越远耗时越长</p>
+<p>CPU 访问不同级别缓存/内存的耗时如下</p>
+<table>
+<thead>
+<tr class="header">
+<th>位置</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>内存</td>
+<td>60-80 ns</td>
+</tr>
+<tr class="even">
+<td>L3 cache</td>
+<td>15 ns</td>
+</tr>
+<tr class="odd">
+<td>L2 cache</td>
+<td>3 ns</td>
+</tr>
+<tr class="even">
+<td>L1 cache</td>
+<td>1 ns</td>
+</tr>
+</tbody>
+</table>
+<p>可见 CPU 从内存读数据比 L1 慢了 2 个数量级</p>
+<h4 id="缓存写入与失效">缓存写入与失效</h4>
+<p>缓存由多个缓存行（cache line）组成，每个 cache line 为 64
+字节，可以存 8 个 long 类型变量</p>
+<p>CPU 在缓存中没有找到数据，到内存中读到数据后，会写入缓存中。CPU
+每次从内存拉数据，会把相邻的 64 字节（将内存空间按 64
+字节分成小块）一起写入缓存的一个 cache line 中</p>
+<p>比如在访问一个 long 数组 arr 时，假设 arr[0] ~ arr[7] 在一个 64
+字节内存块中，读取了 arr[0]，会把 arr[1] ~ arr[7]
+也加载到缓存，这样再访问 arr[1] 时，直接在 L1
+中读，不需要到内存中，提高了读取速度</p>
+<p>当 cache line 对应的内存数据被修改，由于缓存和内存数据不一致，则
+cache line 失效，需要重新到内存读，在多 CPU 下，需要让所有 CPU
+的缓存中的 cache line 都失效</p>
+<h4 id="伪共享的验证">伪共享的验证</h4>
+<p>这样会出现这样一个场景：CPU1 不断读 arr[0]，CPU2 不断写 arr[1]，CPU1
+本可以从自己的 L1 cache 中拿到 arr[0] 的值，却由于 CPU2
+的写操作，导致自己的 L1 cache 中对应的 cache line
+不停失效，不得不到内存中读数据。看似两个 CPU
+在处理不同的变量，却互相影响了，这种无法充分利用 cache line
+的现象，称为<strong>伪共享</strong></p>
+<p>对于伪共享，一般的解决方案，是增大变量之间的间隔，使两个变量不可能出现在一个
+cache line 上，以空间换时间</p>
+<p><strong>实验验证</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Share</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">long</span> <span class="variable">turn</span> <span class="operator">=</span> <span class="number">500L</span> * <span class="number">1000L</span> * <span class="number">1000L</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">len</span> <span class="operator">=</span> <span class="number">10</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">long</span>[] arr = <span class="keyword">new</span> <span class="title class_">long</span>[len * <span class="number">8</span>];</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">runInFalseShare</span><span class="params">(<span class="type">int</span> i)</span> &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">0</span>; j &lt; turn; j++) &#123;</span><br><span class="line">            arr[i] = j;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">runInShare</span><span class="params">(<span class="type">int</span> i)</span> &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">0</span>; j &lt; turn; j++) &#123;</span><br><span class="line">          	<span class="comment">// 让数据不在一个缓存行中</span></span><br><span class="line">            arr[i * <span class="number">8</span>] = j;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">test</span><span class="params">()</span> <span class="keyword">throws</span> InterruptedException &#123;</span><br><span class="line">        Thread[] threads = <span class="keyword">new</span> <span class="title class_">Thread</span>[len];</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; len; i++) &#123;</span><br><span class="line">            <span class="type">int</span> <span class="variable">finalI</span> <span class="operator">=</span> i;</span><br><span class="line">            threads[i] = <span class="keyword">new</span> <span class="title class_">Thread</span>(() -&gt; &#123;</span><br><span class="line"><span class="comment">//                runInFalseShare(finalI);	// 测试伪共享时执行</span></span><br><span class="line">                runInShare(finalI);	<span class="comment">// 测试共享时执行</span></span><br><span class="line">            &#125;);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="type">long</span> <span class="variable">start</span> <span class="operator">=</span> System.nanoTime();</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; len; i++) &#123;</span><br><span class="line">            threads[i].start();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; len; i++) &#123;</span><br><span class="line">            threads[i].join();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="type">long</span> <span class="variable">end</span> <span class="operator">=</span> System.nanoTime();</span><br><span class="line">        System.out.println(end - start);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> InterruptedException &#123;</span><br><span class="line">        test();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面的例子，runInFlaseShare（伪共享）方法让每个线程访问的数据存在位于同一个缓存行中的情况，runInShare（共享）方法通过设置了
+8 * 8 = 64 byte，让每个线程访问的数据一定不在同一个缓存行中</p>
+<p>分别执行 runInFlaseShare 和 runInShar 的测试方法，运行 10
+次取均值结果如下：</p>
+<table>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>runInFlaseShare</td>
+<td>5737 ms</td>
+</tr>
+<tr class="even">
+<td>runInShare</td>
+<td>765 ms</td>
+</tr>
+</tbody>
+</table>
+<p>可以看到伪共享耗时是共享耗时的 7.5 倍</p>
+<h3 id="问题讨论">问题讨论</h3>
+<p>对于上面提到的三个问题：GC次数、线程安全方案 和
+伪共享，如果让我们自己设计一个内存队列，应该如何解决这些问题呢？</p>
+<blockquote>
+<ol type="1">
+<li>使用数组结构</li>
+<li>在并发场景必须使用锁或CAS保证线程安全，由于锁的性能低于CAS，可以尝试用
+CAS 来代替锁</li>
+<li>由于伪共享会造成性能损耗，可以让队列的元素都不在同一个缓存行中，避免伪共享发生</li>
+</ol>
+</blockquote>
+<p>按照这个思路，把 ArrayBlockingQueue 的并发控制从加锁改为
+CAS，再对其中所有元素前后都插入 4 个 8
+字节，是不是就实现了一个高效的内存队列呢？</p>
+<p>下面来看下 Disruptor 的做法</p>
+<h2 id="disruptor-的设计方案">Disruptor 的设计方案</h2>
+<blockquote>
+<p>在了解 Disruptor 如何解决上面问题之前，先要了解一些术语</p>
+</blockquote>
+<h3 id="术语介绍">术语介绍</h3>
+<p>先看一个简单的栗子</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建Disruptor</span></span><br><span class="line">Disruptor&lt;Event&gt; disruptor = <span class="keyword">new</span> <span class="title class_">Disruptor</span>&lt;&gt;(<span class="keyword">new</span> <span class="title class_">EventFactory</span>(), <span class="number">1024</span>, Executors.defaultThreadFactory());</span><br><span class="line"><span class="comment">// 连接事件处理器</span></span><br><span class="line">disruptor.handleEventsWith(<span class="keyword">new</span> <span class="title class_">EventProcessor</span>());</span><br><span class="line"><span class="comment">// 启动Disruptor</span></span><br><span class="line">RingBuffer&lt;Event&gt; ringBuffer = disruptor.start();</span><br><span class="line"><span class="comment">// 生产事件</span></span><br><span class="line"><span class="type">EventProducer</span> <span class="variable">eventProducer</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">EventProducer</span>(ringBuffer);</span><br><span class="line">eventProducer.produce(<span class="string">&quot;Hello Disruptor!&quot;</span>);</span><br></pre></td></tr></table></figure>
+<p>下面解释栗子中出现的术语</p>
+<ul>
+<li>Event：存放消息的单位</li>
+<li>Ring Buffer：环形数据缓冲区，一个首尾相接的环，用于存放 Event
+，供生产者存入数据，和消费者拉取数据</li>
+<li>Sequence：序列，用于跟踪生成、消费进度</li>
+<li>Sequencer：生产者，有单生产者和多生产者两种实现</li>
+<li>Sequence
+Barrier：序列屏障，消费者之间的依赖关系就靠序列屏障实现</li>
+<li>Wait Strategy：等待策略，消费者等待生产者的策略</li>
+<li>Event Processor：事件处理器，循环从 RingBuffer 获取 Event 并执行
+Event Handler</li>
+<li>Event Handler：事件执行器，也就是消费者</li>
+</ul>
+<h4 id="event">Event</h4>
+<p>存放消息，如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Data</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">Event</span> &#123;</span><br><span class="line">    <span class="keyword">private</span> String message;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="event-factory">Event Factory</h4>
+<p>创建消息的工厂</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">EventFactory</span> <span class="keyword">implements</span> <span class="title class_">com</span>.lmax.disruptor.EventFactory&lt;Event&gt; &#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> Event <span class="title function_">newInstance</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Event</span>();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="sequence">Sequence</h4>
+<blockquote>
+<p>一个数组 arr，我们通过 arr[i]
+可以取到一个位置的元素，但是这样是线程不安全的，比如线程 A 想取第 i
+个元素，在读数据前，其他线程修改了 i 的值，这样线程 A
+取到了错误的值；Sequence 用来代替 i ，线程安全的从数组中取数</p>
+</blockquote>
+<p>用来记录 Ring Buffer 中槽的位置，结构如下</p>
+<figure>
+<img src="/images/jvm/sequence.drawio.png" alt="sequence.drawio">
+<figcaption aria-hidden="true">sequence.drawio</figcaption>
+</figure>
+<p>前面提到，一个缓存行是 64 字节，Sequence 通过在 value 前后填充 56
+字节，使得 <strong>value 一定独享一个缓存行</strong>，避免了伪共享</p>
+<p>更新 Sequence 的 value：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">addAndGet</span><span class="params">(<span class="type">long</span> increment)</span> &#123;</span><br><span class="line">    <span class="type">long</span> currentValue;</span><br><span class="line">    <span class="type">long</span> newValue;</span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        currentValue = <span class="built_in">this</span>.get();</span><br><span class="line">        newValue = currentValue + increment;</span><br><span class="line">    &#125; <span class="keyword">while</span>(!<span class="built_in">this</span>.compareAndSet(currentValue, newValue));</span><br><span class="line">    <span class="keyword">return</span> newValue;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>通过 CAS 的方式，更新 value 的值，即当 currentValue 等于内存中 value
+的值，才为 value 赋值</p>
+<p>Sequence 通过填充字节和CAS，优化了并发场景下读写 Sequence 的性能</p>
+<blockquote>
+<p>令 sequence B 是可消费的最后一个槽的索引，那么消费者线程 N
+再每次消费时，都要读 B 的值，判断当前索引是否小于 B，假设 B
+没有填充字节，则有可能 B 所在 cache line 的其他数据被写，导致缓存失效，N
+需要从内存中读 B 的值；有了填充字节，只要 B 没有被写，缓存就不会失效</p>
+<p>Sequence 的功能与 AtomicLong 的功能几乎一致，在 AtomicLong
+的基础上优化了缓存行伪共享的问题</p>
+</blockquote>
+<h4 id="sequencer">Sequencer</h4>
+<p>生产者，有两种实现：单生产者（SingleProducerSequencer）和多生产者（MultiProducerSequencer）</p>
+<h5 id="singleproducersequencer">SingleProducerSequencer</h5>
+<p>一个 Ring Buffer 只有一个生产者</p>
+<p>SingleProduerSequencer 的结构如下 <img src="/images/jvm/sequencer.drawio.png" alt="sequencer.drawio"></p>
+<p>nextValue：下一个可申请的序列</p>
+<p>cachedValue：缓存最小已被占用的序列，用来计算剩余序列是否足够被申请</p>
+<figure>
+<img src="/images/jvm/nextValue.drawio.png" alt="nextValue.drawio">
+<figcaption aria-hidden="true">nextValue.drawio</figcaption>
+</figure>
+<p>如图，nextValue = 6，cachedValue = 3，说明序列 3、4、5
+已被占用，6、7、0、1、2 可申请</p>
+<p>下面看几个重要方法：</p>
+<table>
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SingleProducerSequencer(final int bufferSize, final WaitStrategy
+waitStrategy)</td>
+<td>构造方法bufferSize：ring buffer 的大小，必须是 2 的 n
+次幂waitStrategy：生产消息时发现队列已满的等待策略</td>
+</tr>
+<tr class="even">
+<td>boolean hasAvailableCapacity(int requiredCapacity)</td>
+<td>是否有可用容量，通过 nextValue + requiredCapacity 与 cachedValue
+比较，判断剩余的序列是否够用</td>
+</tr>
+<tr class="odd">
+<td>long next(int n)</td>
+<td>声明后面 n 个序列的状态是发布中</td>
+</tr>
+<tr class="even">
+<td>void publish(long sequence)</td>
+<td>发布一个序列，意味着这个序列已经被充填了数据（已生产）</td>
+</tr>
+</tbody>
+</table>
+<p>SingleProducerSequencer 生产 n 个消息的执行流程是：</p>
+<ol type="1">
+<li>创建一个大小为 bufferSize 的 ring buffer（构造方法）</li>
+<li>查看当前容量是否足够（hasAvailableCapacity 方法）</li>
+<li>如果容量足够，声明 n 个序列为发布中（next 方法）</li>
+<li>为这 n 个序列填充数据，将已填充数据的序列的状态改为已发布（publish
+方法）</li>
+<li>如果容量不足，执行等待策略</li>
+</ol>
+<h5 id="multiproducersequencer">MultiProducerSequencer</h5>
+<p>一个 Ring Buffer 有多个生产者</p>
+<p>MultiProducerSequencer 的结构如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="type">Sequence</span> <span class="variable">gatingSequenceCache</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Sequence</span>(Sequencer.INITIAL_CURSOR_VALUE);</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="type">int</span>[] availableBuffer;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="type">int</span> indexMask;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="type">int</span> indexShift;</span><br></pre></td></tr></table></figure>
+<p>gatingSequenceCache：记录生产的位置</p>
+<p>availableBuffer：记录每个槽当前数据所在的圈数，初始值
+-1，用来判断数据是否可用（可以被消费），大小为 buffer size</p>
+<p>indexMask = bufferSize - 1，用来计算 sequence 在 availableBuffer
+中的位置：index = sequence &amp; indexMask = sequence &amp; (2^n -
+1)</p>
+<p>indexShift = log2(bufferSize)，用来计算 availableBuffer[i] 的值，flag
+= availableBuffer[i] = sequence &gt;&gt;&gt; indexShift</p>
+<p>下面介绍几个重要方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 计算 sequence 的槽位号</span></span><br><span class="line"><span class="keyword">private</span> <span class="type">int</span> <span class="title function_">calculateIndex</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> ((<span class="type">int</span>) sequence) &amp; indexMask;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 计算 sequence 的圈数</span></span><br><span class="line"><span class="keyword">private</span> <span class="type">int</span> <span class="title function_">calculateAvailabilityFlag</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> (<span class="type">int</span>) (sequence &gt;&gt;&gt; indexShift);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>比如 ring buffer 的 buffer size = 8，indexMask =
+7（0111），indexShift = log2(8) = 3</p>
+<p>sequence(13) 的槽位号 index = 1101 &amp; 0111 = 0101 = 5，圈数 flag =
+13 &gt;&gt;&gt; 3 = 1</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">tryNext</span><span class="params">(<span class="keyword">final</span> <span class="type">int</span> n)</span> <span class="keyword">throws</span> InsufficientCapacityException</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (n &lt; <span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">IllegalArgumentException</span>(<span class="string">&quot;n must be &gt; 0&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="type">long</span> current;</span><br><span class="line">    <span class="type">long</span> next;</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        current = cursor.get();</span><br><span class="line">        next = current + n;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!hasAvailableCapacity(gatingSequences, n, current))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">throw</span> InsufficientCapacityException.INSTANCE;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">while</span> (!cursor.compareAndSet(current, next));</span><br><span class="line">    <span class="keyword">return</span> next;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>tryNext 方法将 cursor + n，cursor 是 ring buffer 上可用的最高位
+sequence，比如一个线程 A 想向队列写 n 个消息，通过 tryNext(n) 即可将
+cursor 向前移动 n 位，则 [cursor + 1, curosr + n] 区间内的槽只能由线程 A
+写入，其他线程再写入，需要从 cursor + n + 1
+开始写，从而避免了每次写都要处理并发冲突；这么看来，在写入 ring buffer
+时，先在线程内部积累一些数据，再批量写入</p>
+<p>不过这样带来一个问题：ring buffer
+被分成多份同时写，不能通过比较消费最高位和生产最高位的大小，来判断槽位是否可用了，因为中间可能存在没生产完的槽位，availableBuffer
+就是用来解决这个问题的</p>
+<p>生产者在 sequence 的槽位 i 上生产完消息，执行 publish，将
+availableBuffer[i] 的值设为 flag</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">publish</span><span class="params">(<span class="type">long</span> sequence)</span> &#123;</span><br><span class="line">    <span class="built_in">this</span>.setAvailable(sequence);</span><br><span class="line">    <span class="built_in">this</span>.waitStrategy.signalAllWhenBlocking();</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">setAvailable</span><span class="params">(<span class="type">long</span> sequence)</span> &#123;</span><br><span class="line">    <span class="built_in">this</span>.setAvailableBufferValue(<span class="built_in">this</span>.calculateIndex(sequence), <span class="built_in">this</span>.calculateAvailabilityFlag(sequence));</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 计算 sequence 是否可用（即有数据/可消费）</span></span><br><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">isAvailable</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">index</span> <span class="operator">=</span> calculateIndex(sequence);</span><br><span class="line">    <span class="type">int</span> <span class="variable">flag</span> <span class="operator">=</span> calculateAvailabilityFlag(sequence);</span><br><span class="line">  	<span class="comment">// availableBuffer[index] == flag，认为 sequence 是可用的</span></span><br><span class="line">    <span class="keyword">return</span> (<span class="type">int</span>) AVAILABLE_ARRAY.getAcquire(availableBuffer, index) == flag;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>例如 buffer size = 8，生产者写完 sequence(13)，availableBuffer[5] =
+1</p>
+<p>消费者来读 sequence(5)，flag = 0 不等于 availableBuffer[5]，说明
+sequence(5) 不可用，已经被 sequence(13) 覆盖掉了</p>
+<p>sequence(14) 的 index = 6，flag = 1，availableBuffer[6] =
+0，不相等，说明 sequence(14) 不可用，因为 sequence(14)
+还是第一圈的旧数据，已经被消费过了，第二圈的还没有写入</p>
+</blockquote>
+<p>MultiProducerSequencer 生产 n 个消息的执行流程是：</p>
+<ol type="1">
+<li>创建一个大小为 bufferSize 的 ring
+buffer、availableBuffer，indexMask，indexShift</li>
+<li>tryNext 申请 n 个连续槽位（CAS）</li>
+<li>如果剩余槽位足够，将 cursor 后移 n 位</li>
+<li>向槽位写入数据，通过 publish 修改 availableBuffer
+对应位置的状态（flag）</li>
+<li>如果槽位不足，执行等待策略</li>
+</ol>
+<h4 id="ring-buffer">Ring Buffer</h4>
+<p>Ring Buffer 是一个环形数据缓冲区，用于存放 Event，数据结构如下</p>
+<figure>
+<img src="/images/jvm/ring_buffer.drawio.png" alt="ring_buffer.drawio">
+<figcaption aria-hidden="true">ring_buffer.drawio</figcaption>
+</figure>
+<p>说明：</p>
+<ol type="1">
+<li>前后的 56 byte 用于填充缓存行，防止 indexMask 和 Sequencer
+发生伪共享</li>
+<li>indexMask 用于计算 sequence 的槽位号，同 Sequencer</li>
+<li>entries 是 Event 对象引用的数组，长度为 2 的 n 次幂，每个元素大小为
+4 byte（开启指针压缩），前后 32 个元素被指定为 BUFFER_PAD（128
+byte）</li>
+<li>BufferSize：Sequencer 的长度</li>
+</ol>
+<blockquote>
+<p>不是很理解 BUFFER_PAD 的长度为什么设计为 32，缓存行填充只需要 56
+byte，14 个元素即可</p>
+<p>指针压缩：64位系统中，每个指针默认大小 8
+byte，为了节省内存空间，开启指针压缩可以让指针大小缩小为 4
+byte（默认开启）；32 位系统指针都是 4 byte，不存在指针压缩</p>
+</blockquote>
+<p>重要方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 向后申请一个 sequence</span></span><br><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">next</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> sequencer.next();</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 取 sequence 上的数据</span></span><br><span class="line"><span class="keyword">public</span> E <span class="title function_">get</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> elementAt(sequence);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 将 sequence 位置上数据的状态改为已发布</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">publish</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">&#123;</span><br><span class="line">    sequencer.publish(sequence);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到，ring buffer 都是通过 sequencer 来操作槽位的状态</p>
+<h4 id="sequence-barrier">Sequence Barrier</h4>
+<p>屏障是用来控制消费者，消费者只能消费屏障内的消息，防止消费到不可用的消息</p>
+<p>消费者消费的模式分为两种：</p>
+<ol type="1">
+<li>依赖生产者最大可达数据</li>
+<li>消费者依赖图</li>
+</ol>
+<p>为了更简单明白原理，只对模式1分析</p>
+<p>Sequence Barrier 的结构如下</p>
+<p>sequencer：生产者</p>
+<p>waitStrategy：等待策略</p>
+<p>cursorSequence：当前生产到的消息</p>
+<p>dependentSequences：依赖的消息</p>
+<p>消费者希望消费 sequence 位置上的消息前，要通过屏障的 waitFor
+方法来获取可用的位置（屏障边界），消费者拿到可用位置后，就可以消费这个位置以内的消息</p>
+<blockquote>
+<p>比如：连续可用消息的最大位置是 100，消费者 A 希望消费位置
+90，则屏障返回 100，说明此刻消费者 A 可以消费位置 100 以内的消息；消费者
+B 希望消费位置 101，由于 101 还未被生产，屏障会执行等待策略，阻止 B
+消费</p>
+</blockquote>
+<p>代码解读：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 入参：sequence 希望消费的位置</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">waitFor</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence)</span></span><br><span class="line">    <span class="keyword">throws</span> AlertException, InterruptedException, TimeoutException</span><br><span class="line">&#123;</span><br><span class="line">    checkAlert();</span><br><span class="line">  	<span class="comment">// 等待策略有多种，这里用默认的 BlockingWaitStrategy 来介绍：比较期望位置（sequence）和当前生产位置（cursorSequence）的大小，如果 sequence &gt; cursorSequence 等待，如果 sequence &lt;= cursorSequence，返回 cursorSequence，如果有依赖节点，则需 sequence &lt;= dependentSequence，否则等待</span></span><br><span class="line">    <span class="type">long</span> <span class="variable">availableSequence</span> <span class="operator">=</span> waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, <span class="built_in">this</span>);</span><br><span class="line">  	<span class="comment">// 对于 BlockingWaitStrategy 返回的是一个大于等于 sequence 的值（比如休眠一段时间起来发现，cursorSequence 已遥遥领先 sequence，得抓紧干活了），故不会进入下面的分支</span></span><br><span class="line">    <span class="keyword">if</span> (availableSequence &lt; sequence)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span> availableSequence;</span><br><span class="line">    &#125;</span><br><span class="line">  	<span class="comment">// 当 BlockingWaitStrategy 返回一个大于 sequence 的值，在 multiProducerSequener 并发生产时，可能 cursorSequence 内有不可用的位置，所以要从 sequence 开始向后遍历，找到最大的可用位置</span></span><br><span class="line">    <span class="keyword">return</span> sequencer.getHighestPublishedSequence(sequence, availableSequence);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>当消费者线程进入休眠，生产者生产了一条消息，就要通知所有消费者起来干活，是通过屏障的
+alert 方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">alert</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    alerted = <span class="literal">true</span>;</span><br><span class="line">    waitStrategy.signalAllWhenBlocking();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面两个方法都用到了 WaitStrategy 的方法，下面继续介绍</p>
+<h4 id="waitstrategy">WaitStrategy</h4>
+<p>消费者消费时，可能遇到当前 sequence
+是不可用状态，需要按照给定的策略等待</p>
+<p>有以下几个等待策略</p>
+<table>
+<colgroup>
+<col style="width: 46%">
+<col style="width: 53%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>策略</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>BlockingWaitStrategy</td>
+<td>CPU 资源宝贵，吞吐量和低延迟次要</td>
+</tr>
+<tr class="even">
+<td>BusySpinWaitStrategy</td>
+<td>CPU 性能比较好，追求高吞吐量和低延迟</td>
+</tr>
+<tr class="odd">
+<td>TimeoutBlockingWaitStrategy</td>
+<td>CPU 资源宝贵，吞吐量和低延迟次要</td>
+</tr>
+<tr class="even">
+<td>LiteTimeoutBlockingWaitStrategy</td>
+<td>CPU 资源宝贵，吞吐量和低延迟次要</td>
+</tr>
+<tr class="odd">
+<td>PhasedBackoffWaitStrategy</td>
+<td>CPU 资源宝贵，吞吐量和低延迟次要</td>
+</tr>
+</tbody>
+</table>
+<p>下面分别介绍</p>
+<h5 id="blockingwaitstrategy">BlockingWaitStrategy</h5>
+<blockquote>
+<p>因为消息之间可能存在依赖，需要等待 dependentSequence
+被消费，为了简化理解，我们先认为消息之间没有依赖，即 dependentSequence =
+cursorSequence（当前消息）</p>
+</blockquote>
+<p>该策略使用系统调用让消费线程等待，在生产一条消息后再唤醒消费线程，当吞吐量和低延迟不如
+CPU 资源重要时，可以使用此策略</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">waitFor</span><span class="params">(<span class="keyword">final</span> <span class="type">long</span> sequence, <span class="keyword">final</span> Sequence cursorSequence, <span class="keyword">final</span> Sequence dependentSequence, <span class="keyword">final</span> SequenceBarrier barrier)</span></span><br><span class="line">        <span class="keyword">throws</span> AlertException, InterruptedException</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">long</span> availableSequence;</span><br><span class="line">  	<span class="comment">// 期望位置大于生产最大位置，期望位置消息不可用，需等待 cursorSequce 增大</span></span><br><span class="line">    <span class="keyword">if</span> (cursorSequence.get() &lt; sequence)</span><br><span class="line">    &#123;</span><br><span class="line">      	<span class="comment">// wait 方法必须在同步代码块中使用</span></span><br><span class="line">        <span class="keyword">synchronized</span> (mutex)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">while</span> (cursorSequence.get() &lt; sequence)</span><br><span class="line">            &#123;</span><br><span class="line">              	<span class="comment">// 监听是否有新消息被生产</span></span><br><span class="line">                barrier.checkAlert();</span><br><span class="line">              	<span class="comment">// 释放锁，开始等待 barrier 的通知（alert方法）</span></span><br><span class="line">                mutex.wait();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">		<span class="comment">// 在依赖生产者最大可达数据情况下，dependentSequence 就是生产最大位置，也就是 cursorSequence</span></span><br><span class="line">    <span class="keyword">while</span> ((availableSequence = dependentSequence.get()) &lt; sequence)</span><br><span class="line">    &#123;</span><br><span class="line">        barrier.checkAlert();</span><br><span class="line">        Thread.onSpinWait();</span><br><span class="line">    &#125;</span><br><span class="line">  	<span class="comment">// 返回最大生产位置（&gt;= sequence），由于中间可能存在未生产完的情况，在 barrier 中要对 [sequence, avaiableSequence] 的可用性做检查，找到最大可用位置</span></span><br><span class="line">    <span class="keyword">return</span> availableSequence;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在上面代码中，消费者期望位置不可用，会先占有 mutex 锁，通过
+mutex.wait() 方法让线程进入等待状态</p>
+<p>当生产者调用 barrier 的 alert 方法，会调用 waitStrategy 的
+signalAllWhenBlocking 来唤醒 mutex 上等待的消费者</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">signalAllWhenBlocking</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (mutex)</span><br><span class="line">    &#123;</span><br><span class="line">        mutex.notifyAll();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h5 id="busyspinwaitstrategy">BusySpinWaitStrategy</h5>
+<p>与 BlockWaitStrategy
+的区别是，不需要线上等待，而是周期性轮询直到位置可用</p>
+<p>这个策略避免了系统调用，不过增大了 CPU 的 busy 程度，如果 CPU
+性能比较好可以考虑</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">long</span> <span class="title function_">waitFor</span><span class="params">(</span></span><br><span class="line"><span class="params">    <span class="keyword">final</span> <span class="type">long</span> sequence, <span class="keyword">final</span> Sequence cursor, <span class="keyword">final</span> Sequence dependentSequence, <span class="keyword">final</span> SequenceBarrier barrier)</span></span><br><span class="line">    <span class="keyword">throws</span> AlertException, InterruptedException</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">long</span> availableSequence;</span><br><span class="line">    <span class="keyword">while</span> ((availableSequence = dependentSequence.get()) &lt; sequence)</span><br><span class="line">    &#123;</span><br><span class="line">        barrier.checkAlert();</span><br><span class="line">        Thread.onSpinWait();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> availableSequence;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">signalAllWhenBlocking</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h5 id="timeoutblockingwaitstrategy">TimeoutBlockingWaitStrategy</h5>
+<p>在 BlockWaitStrategy
+基础上加入了线程等待的最大时间，防止线程无限期的等待下去</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (cursorSequence.get() &lt; sequence)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (mutex)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">while</span> (cursorSequence.get() &lt; sequence)</span><br><span class="line">        &#123;</span><br><span class="line">            barrier.checkAlert();</span><br><span class="line">            timeoutNanos = awaitNanos(mutex, timeoutNanos);</span><br><span class="line">            <span class="keyword">if</span> (timeoutNanos &lt;= <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">throw</span> TimeoutException.INSTANCE;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h5 id="litetimeoutblockingwaitstrategy">LiteTimeoutBlockingWaitStrategy</h5>
+<p>在 TimeoutBlockingWaitStrategy
+基础上，加上了是否需要通知校验的优化，只有在有消费者等待的情况下才会
+notifyAll</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">signalAllWhenBlocking</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (signalNeeded.getAndSet(<span class="literal">false</span>))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">synchronized</span> (mutex)</span><br><span class="line">        &#123;</span><br><span class="line">            mutex.notifyAll();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h5 id="phasedbackoffwaitstrategy">PhasedBackoffWaitStrategy</h5>
+<p>先自旋，自旋次数达到阈值后，采用 backup 策略</p>
+<p>更多的策略可阅读源码</p>
+<h4 id="event-processor">Event Processor</h4>
+<p>消费处理器，用于执行消费逻辑</p>
+<p>实现：BatchEventProcessor</p>
+<p>结构：</p>
+<ul>
+<li>dataProvider：用于读取某个位置上的数据</li>
+<li>sequenceBarrier：屏障</li>
+<li>eventHandler：消息处理器</li>
+<li>maxBatchSize：消费一批消息的最大数量</li>
+<li>batchRewindStrategy：重试策略</li>
+<li>sequence：当前已消费的位置</li>
+</ul>
+<p>执行消费方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">processEvents</span><span class="params">()</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="type">T</span> <span class="variable">event</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">  			<span class="comment">// 已消费的下一个位置</span></span><br><span class="line">        <span class="type">long</span> <span class="variable">nextSequence</span> <span class="operator">=</span> sequence.get() + <span class="number">1L</span>;</span><br><span class="line">        <span class="keyword">while</span> (<span class="literal">true</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          	<span class="comment">// 要消费的起始位置</span></span><br><span class="line">            <span class="keyword">final</span> <span class="type">long</span> <span class="variable">startOfBatchSequence</span> <span class="operator">=</span> nextSequence;</span><br><span class="line">            <span class="keyword">try</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">try</span></span><br><span class="line">                &#123;</span><br><span class="line">                  	<span class="comment">// 获取包含 nextSequence 的可消费的最大位置</span></span><br><span class="line">                    <span class="keyword">final</span> <span class="type">long</span> <span class="variable">availableSequence</span> <span class="operator">=</span> sequenceBarrier.waitFor(nextSequence);</span><br><span class="line">                  	<span class="comment">// 计算本消费批次的结束位置</span></span><br><span class="line">                    <span class="keyword">final</span> <span class="type">long</span> <span class="variable">endOfBatchSequence</span> <span class="operator">=</span> min(nextSequence + batchLimitOffset, availableSequence);</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">if</span> (nextSequence &lt;= endOfBatchSequence)</span><br><span class="line">                    &#123;</span><br><span class="line">                      	<span class="comment">// 实现为空，不太理解这里是做什么</span></span><br><span class="line">                        eventHandler.onBatchStart(endOfBatchSequence - nextSequence + <span class="number">1</span>, availableSequence - nextSequence + <span class="number">1</span>);</span><br><span class="line">                    &#125;</span><br><span class="line">										</span><br><span class="line">                    <span class="keyword">while</span> (nextSequence &lt;= endOfBatchSequence)</span><br><span class="line">                    &#123;</span><br><span class="line">                        event = dataProvider.get(nextSequence);</span><br><span class="line">                      	<span class="comment">// 执行消费逻辑</span></span><br><span class="line">                        eventHandler.onEvent(event, nextSequence, nextSequence == endOfBatchSequence);</span><br><span class="line">                        nextSequence++;</span><br><span class="line">                    &#125;</span><br><span class="line"></span><br><span class="line">                    retriesAttempted = <span class="number">0</span>;</span><br><span class="line">										<span class="comment">// 更新已消费位置</span></span><br><span class="line">                    sequence.set(endOfBatchSequence);</span><br><span class="line">                &#125;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="流程汇总">流程汇总</h3>
+<p>通过下面步骤串起 disruptor
+生产和消费过程（多生产者，基于最大生产消息）</p>
+<p><strong>步骤1.</strong> 生产者 P1、P2、P3 调用
+MultiProducerSequencer.tryNext(n) 使用 CAS 修改 cursor 的值，分别申请
+11、15、25 个位置，并将 ring buffer 的 cursor 后移至
+50，同时生产消息；生产完位置 sequence，令 availableBuffer<a href="#sequence">sequence</a> = 0</p>
+<figure>
+<img src="/../source/images/jvm/disruptor-flow.drawio.png" alt="disruptor-flow.drawio">
+<figcaption aria-hidden="true">disruptor-flow.drawio</figcaption>
+</figure>
+<p>假设P1生产完 sequence = 7 后阻塞</p>
+<p><strong>步骤2.</strong> 消费者 C1 开始消费</p>
+<p>C1 调用 barrier.waitFor(1)，maxBatchSize = 10，获取可消费的最大位置 =
+7，C1 开始从 0 开始消费到 7。消费完，C1 的 sequence = 7</p>
+<p><strong>步骤3.</strong> C1 调用 barrier.waitFor(8)，发现位置 8
+的消息不可用（availableByffer[8] = -1 不等于 0），执行等待策略</p>
+<p><strong>步骤4.</strong> P1 此时阻塞结束，生产完消息 8 的消息，执行
+publish，将 availableBuffer[8] = 0，通过 barrier.alert 方法通知 C1</p>
+<p><strong>步骤5.</strong> C1 被唤醒，barrier.waitFor(8) = 8，消费位置 8
+的消息</p>
+<h2 id="总结">总结</h2>
+<p>Disruptor 是通过下面设计思想，解决内存队列并发性能问题的</p>
+<ul>
+<li>环形数组：环形数组可以覆盖过期的数据，减少 GC
+次数；同时，数组可以充分利用 CPU 的缓存共享机制</li>
+<li>预申请：提前申请一段独享空间，避免每次写都争抢资源</li>
+<li>无锁：通过 CAS 保证线程安全</li>
+<li>属性填充：避免伪共享</li>
+</ul>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://lmax-exchange.github.io/disruptor/files/Disruptor-1.0.pdf">Disruptor:
+High performance alternative to bounded queues for exchanging data
+between concurrent threads</a></p>
+<p><a target="_blank" rel="noopener" href="https://tech.meituan.com/2016/11/18/disruptor.html">高性能队列 -
+Disruptor</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/e121074bcfd9">Disruptor介绍及原理讲解</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/pxg943055021/article/details/125652612">Disruptor（二）Sequencer</a></p>
+<p><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1811969">高并发数据结构Disruptor解析（3）</a></p>
+<p><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1811974">高并发数据结构Disruptor解析（5）</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/java/" rel="tag"># java</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/01/06/diary/2023-persional-summary/" rel="prev" title="Shaun JM 2023 年度总结">
+      <i class="fa fa-chevron-left"></i> Shaun JM 2023 年度总结
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#java-%E5%86%85%E5%AD%98%E9%98%9F%E5%88%97%E5%AD%98%E5%9C%A8%E7%9A%84%E5%BB%B6%E8%BF%9F%E9%97%AE%E9%A2%98"><span class="nav-number">1.</span> <span class="nav-text">Java 内存队列存在的延迟问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#gc-%E4%B8%8E%E8%AE%BF%E9%97%AE%E9%80%9F%E5%BA%A6"><span class="nav-number">1.1.</span> <span class="nav-text">GC 与访问速度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A0%E9%94%81%E4%B8%8Ecas%E7%9A%84%E6%80%A7%E8%83%BD%E6%AF%94%E8%BE%83"><span class="nav-number">1.2.</span> <span class="nav-text">加锁与CAS的性能比较</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%AA%E5%85%B1%E4%BA%AB"><span class="nav-number">1.3.</span> <span class="nav-text">伪共享</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A4%9A%E7%BA%A7%E7%BC%93%E5%AD%98"><span class="nav-number">1.3.1.</span> <span class="nav-text">多级缓存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BC%93%E5%AD%98%E5%86%99%E5%85%A5%E4%B8%8E%E5%A4%B1%E6%95%88"><span class="nav-number">1.3.2.</span> <span class="nav-text">缓存写入与失效</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BC%AA%E5%85%B1%E4%BA%AB%E7%9A%84%E9%AA%8C%E8%AF%81"><span class="nav-number">1.3.3.</span> <span class="nav-text">伪共享的验证</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%AE%A8%E8%AE%BA"><span class="nav-number">1.4.</span> <span class="nav-text">问题讨论</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#disruptor-%E7%9A%84%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88"><span class="nav-number">2.</span> <span class="nav-text">Disruptor 的设计方案</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%AF%E8%AF%AD%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.1.</span> <span class="nav-text">术语介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#event"><span class="nav-number">2.1.1.</span> <span class="nav-text">Event</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#event-factory"><span class="nav-number">2.1.2.</span> <span class="nav-text">Event Factory</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#sequence"><span class="nav-number">2.1.3.</span> <span class="nav-text">Sequence</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#sequencer"><span class="nav-number">2.1.4.</span> <span class="nav-text">Sequencer</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#singleproducersequencer"><span class="nav-number">2.1.4.1.</span> <span class="nav-text">SingleProducerSequencer</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#multiproducersequencer"><span class="nav-number">2.1.4.2.</span> <span class="nav-text">MultiProducerSequencer</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#ring-buffer"><span class="nav-number">2.1.5.</span> <span class="nav-text">Ring Buffer</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#sequence-barrier"><span class="nav-number">2.1.6.</span> <span class="nav-text">Sequence Barrier</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#waitstrategy"><span class="nav-number">2.1.7.</span> <span class="nav-text">WaitStrategy</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#blockingwaitstrategy"><span class="nav-number">2.1.7.1.</span> <span class="nav-text">BlockingWaitStrategy</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#busyspinwaitstrategy"><span class="nav-number">2.1.7.2.</span> <span class="nav-text">BusySpinWaitStrategy</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#timeoutblockingwaitstrategy"><span class="nav-number">2.1.7.3.</span> <span class="nav-text">TimeoutBlockingWaitStrategy</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#litetimeoutblockingwaitstrategy"><span class="nav-number">2.1.7.4.</span> <span class="nav-text">LiteTimeoutBlockingWaitStrategy</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#phasedbackoffwaitstrategy"><span class="nav-number">2.1.7.5.</span> <span class="nav-text">PhasedBackoffWaitStrategy</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#event-processor"><span class="nav-number">2.1.8.</span> <span class="nav-text">Event Processor</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%81%E7%A8%8B%E6%B1%87%E6%80%BB"><span class="nav-number">2.2.</span> <span class="nav-text">流程汇总</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">56</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">36</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '40c7f340a5aa2de7aa46703f1fd98ce6',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
