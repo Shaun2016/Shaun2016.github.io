@@ -35,7 +35,7 @@
 <meta property="og:image" content="http://shaun2016.github.io/images/jvm/ring_buffer.drawio.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/jvm/disruptor-flow.drawio.png">
 <meta property="article:published_time" content="2024-04-13T15:01:12.000Z">
-<meta property="article:modified_time" content="2024-04-13T15:20:00.061Z">
+<meta property="article:modified_time" content="2024-04-14T03:14:26.410Z">
 <meta property="article:author" content="Jiaming Zhang">
 <meta property="article:tag" content="java">
 <meta name="twitter:card" content="summary">
@@ -224,10 +224,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-04-13 23:01:12 / 修改时间：23:20:00" itemprop="dateCreated datePublished" datetime="2024-04-13T23:01:12+08:00">2024-04-13</time>
+              <time title="创建时间：2024-04-13 23:01:12" itemprop="dateCreated datePublished" datetime="2024-04-13T23:01:12+08:00">2024-04-13</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-04-14 11:14:26" itemprop="dateModified" datetime="2024-04-14T11:14:26+08:00">2024-04-14</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -311,6 +317,8 @@
 </tr>
 </tbody>
 </table>
+<p>java
+线程安全的内置队列，由于锁争抢、伪共享存在一定的性能问题，原因如下</p>
 <h3 id="gc-与访问速度">GC 与访问速度</h3>
 <p>由于链表结构相比于数组，更容易出现内存碎片，更容易触发垃圾回收，而且一般队列在使用中，都是
 FIFO
@@ -419,20 +427,19 @@ cache line 上，以空间换时间</p>
 </table>
 <p>可以看到伪共享耗时是共享耗时的 7.5 倍</p>
 <h3 id="问题讨论">问题讨论</h3>
-<p>对于上面提到的三个问题：GC次数、线程安全方案 和
-伪共享，如果让我们自己设计一个内存队列，应该如何解决这些问题呢？</p>
+<p>可以看到三个问题：GC次数、线程安全方案 和 伪共享，会让 java
+内置线程安全队列，产生一定性能问题，如果让我们解决这些问题，应该如何设计队列呢</p>
+<p>思路：</p>
 <blockquote>
 <ol type="1">
 <li>使用数组结构</li>
-<li>在并发场景必须使用锁或CAS保证线程安全，由于锁的性能低于CAS，可以尝试用
-CAS 来代替锁</li>
-<li>由于伪共享会造成性能损耗，可以让队列的元素都不在同一个缓存行中，避免伪共享发生</li>
+<li>使用 CAS 控制并发</li>
+<li>让队列的元素不在同一个缓存行中，避免伪共享发生</li>
 </ol>
 </blockquote>
 <p>按照这个思路，把 ArrayBlockingQueue 的并发控制从加锁改为
 CAS，再对其中所有元素前后都插入 4 个 8
-字节，是不是就实现了一个高效的内存队列呢？</p>
-<p>下面来看下 Disruptor 的做法</p>
+字节，是不是就实现了一个高效的内存队列呢，下面看下 Disruptor 的做法</p>
 <h2 id="disruptor-的设计方案">Disruptor 的设计方案</h2>
 <blockquote>
 <p>在了解 Disruptor 如何解决上面问题之前，先要了解一些术语</p>
@@ -445,14 +452,14 @@ CAS，再对其中所有元素前后都插入 4 个 8
 <li>Event：存放消息的单位</li>
 <li>Ring Buffer：环形数据缓冲区，一个首尾相接的环，用于存放 Event
 ，供生产者存入数据，和消费者拉取数据</li>
-<li>Sequence：序列，用于跟踪生成、消费进度</li>
+<li>Sequence：序列，用于记录消息位置</li>
 <li>Sequencer：生产者，有单生产者和多生产者两种实现</li>
 <li>Sequence
-Barrier：序列屏障，消费者之间的依赖关系就靠序列屏障实现</li>
+Barrier：序列屏障，控制消费者消费进度，防止消费到不可用消息</li>
 <li>Wait Strategy：等待策略，消费者等待生产者的策略</li>
-<li>Event Processor：事件处理器，循环从 RingBuffer 获取 Event 并执行
+<li>Event Processor：消息处理器，循环从 RingBuffer 批量获取 Event 并执行
 Event Handler</li>
-<li>Event Handler：事件执行器，也就是消费者</li>
+<li>Event Handler：执行消费逻辑</li>
 </ul>
 <h4 id="event">Event</h4>
 <p>存放消息，如：</p>
@@ -734,7 +741,7 @@ notifyAll</p>
 <p>执行消费方法：</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">processEvents</span><span class="params">()</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="type">T</span> <span class="variable">event</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">  			<span class="comment">// 已消费的下一个位置</span></span><br><span class="line">        <span class="type">long</span> <span class="variable">nextSequence</span> <span class="operator">=</span> sequence.get() + <span class="number">1L</span>;</span><br><span class="line">        <span class="keyword">while</span> (<span class="literal">true</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          	<span class="comment">// 要消费的起始位置</span></span><br><span class="line">            <span class="keyword">final</span> <span class="type">long</span> <span class="variable">startOfBatchSequence</span> <span class="operator">=</span> nextSequence;</span><br><span class="line">            <span class="keyword">try</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">try</span></span><br><span class="line">                &#123;</span><br><span class="line">                  	<span class="comment">// 获取包含 nextSequence 的可消费的最大位置</span></span><br><span class="line">                    <span class="keyword">final</span> <span class="type">long</span> <span class="variable">availableSequence</span> <span class="operator">=</span> sequenceBarrier.waitFor(nextSequence);</span><br><span class="line">                  	<span class="comment">// 计算本消费批次的结束位置</span></span><br><span class="line">                    <span class="keyword">final</span> <span class="type">long</span> <span class="variable">endOfBatchSequence</span> <span class="operator">=</span> min(nextSequence + batchLimitOffset, availableSequence);</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">if</span> (nextSequence &lt;= endOfBatchSequence)</span><br><span class="line">                    &#123;</span><br><span class="line">                      	<span class="comment">// 实现为空，不太理解这里是做什么</span></span><br><span class="line">                        eventHandler.onBatchStart(endOfBatchSequence - nextSequence + <span class="number">1</span>, availableSequence - nextSequence + <span class="number">1</span>);</span><br><span class="line">                    &#125;</span><br><span class="line">										</span><br><span class="line">                    <span class="keyword">while</span> (nextSequence &lt;= endOfBatchSequence)</span><br><span class="line">                    &#123;</span><br><span class="line">                        event = dataProvider.get(nextSequence);</span><br><span class="line">                      	<span class="comment">// 执行消费逻辑</span></span><br><span class="line">                        eventHandler.onEvent(event, nextSequence, nextSequence == endOfBatchSequence);</span><br><span class="line">                        nextSequence++;</span><br><span class="line">                    &#125;</span><br><span class="line"></span><br><span class="line">                    retriesAttempted = <span class="number">0</span>;</span><br><span class="line">										<span class="comment">// 更新已消费位置</span></span><br><span class="line">                    sequence.set(endOfBatchSequence);</span><br><span class="line">                &#125;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
 <h3 id="流程汇总">流程汇总</h3>
-<p>通过下面步骤串起 disruptor
+<p>通过下面几个步骤串起 disruptor
 生产和消费过程（多生产者，基于最大生产消息）</p>
 <p><strong>步骤1.</strong> 生产者 P1、P2、P3 调用
 MultiProducerSequencer.tryNext(n) 使用 CAS 修改 cursor 的值，分别申请
