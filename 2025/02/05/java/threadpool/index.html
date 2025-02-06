@@ -35,7 +35,7 @@
 <meta property="og:image" content="http://shaun2016.github.io/images/java/%E7%BA%BF%E7%A8%8B%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96.drawio.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/java/%E6%95%B4%E4%BD%93%E6%B5%81%E7%A8%8B.drawio.png">
 <meta property="article:published_time" content="2025-02-05T12:09:15.000Z">
-<meta property="article:modified_time" content="2025-02-05T12:15:03.654Z">
+<meta property="article:modified_time" content="2025-02-06T02:53:11.188Z">
 <meta property="article:author" content="Jiaming Zhang">
 <meta property="article:tag" content="java">
 <meta name="twitter:card" content="summary">
@@ -224,10 +224,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2025-02-05 20:09:15 / 修改时间：20:15:03" itemprop="dateCreated datePublished" datetime="2025-02-05T20:09:15+08:00">2025-02-05</time>
+              <time title="创建时间：2025-02-05 20:09:15" itemprop="dateCreated datePublished" datetime="2025-02-05T20:09:15+08:00">2025-02-05</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-02-06 10:53:11" itemprop="dateModified" datetime="2025-02-06T10:53:11+08:00">2025-02-06</time>
+              </span>
 
           
 
@@ -269,17 +275,17 @@ TERMINATED，明确状态之间的关系非常重要</p>
 <blockquote>
 <p>如果用两个变量分别表示 A 和
 B，在维护两者关系时，需要加锁保证两者的一致性</p>
-<p>举个例子，我在一个时刻先读 A 再读 B，代码中如果不加锁，可能读 A
+<p>举个例子，在一个时刻先读 A 再读 B，代码中如果不加锁，可能读 A
 的时候，B 的值被修改了，那么 A 和 B 的状态就不一致了；</p>
 <p>为了避免对 A 和 B 加锁，使用一个原子变量代表 A 和 B，可以保障每次读 A
 和 B 的值 状态是一致的</p>
 <p>那么 A 和 B
-哪个放在高位呢？应该将表示状态、分类的放高位，这样方便用大于小于来判断状态，不需要取出高位的值</p>
+哪个放在高位呢？应该将表示状态、分类的放高位，这样方便用比较大小来判断状态，不需要取出高位</p>
 </blockquote>
 <h4 id="生命周期">生命周期</h4>
 <figure>
-<img src="/images/java/线程池状态.drawio.png" alt="线程池状态.drawio">
-<figcaption aria-hidden="true">线程池状态.drawio</figcaption>
+<img src="/images/java/线程池状态.drawio.png" alt="线程池状态">
+<figcaption aria-hidden="true">线程池状态</figcaption>
 </figure>
 <p>RUNNING：运行状态，线程池可以接收新的任务，可以处理已添加到任务队列中的任务</p>
 <p>SHUTDOWN：关闭状态，当调用 shutdown()
@@ -356,10 +362,9 @@ CountDownLatch、Semaphore</p>
 </ol>
 <h4 id="execute">execute</h4>
 <p>执行一个任务</p>
-<p>输入：任务</p>
 <p>要解决的事情：</p>
 <ul>
-<li>用核心线程还是非核心线程来执行任务</li>
+<li>怎么创建线程：核心 or 非核心</li>
 <li>什么情况要放入等待队列</li>
 <li>什么情况要拒绝任务</li>
 </ul>
@@ -398,7 +403,6 @@ corePoolSize，直接创建核心线程执行任务</li>
 corePoolSize，则直接释放，直到等于 corePoolSize</p>
 </blockquote>
 <h4 id="runworker">runWorker</h4>
-<p>输入：Worker 对象</p>
 <p>在上面的 addWorker 方法中，会运行 thead.start()
 启动线程，执行任务</p>
 <p>我们知道，thread.start() 方法会执行传入 Runnable 对象的 run()
@@ -413,10 +417,11 @@ corePoolSize，则直接释放，直到等于 corePoolSize</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// java.util.concurrent.ThreadPoolExecutor#runWorker</span></span><br><span class="line"><span class="keyword">final</span> <span class="keyword">void</span> <span class="title function_">runWorker</span><span class="params">(Worker w)</span> &#123;</span><br><span class="line">        <span class="type">Thread</span> <span class="variable">wt</span> <span class="operator">=</span> Thread.currentThread();</span><br><span class="line">  			<span class="comment">// 获取任务</span></span><br><span class="line">        <span class="type">Runnable</span> <span class="variable">task</span> <span class="operator">=</span> w.firstTask;</span><br><span class="line">        w.firstTask = <span class="literal">null</span>;</span><br><span class="line">        w.unlock(); <span class="comment">// allow interrupts</span></span><br><span class="line">        <span class="type">boolean</span> <span class="variable">completedAbruptly</span> <span class="operator">=</span> <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          	<span class="comment">// 如果任务为空，则通过 getTask 从阻塞队列中获取一个任务</span></span><br><span class="line">            <span class="keyword">while</span> (task != <span class="literal">null</span> || (task = getTask()) != <span class="literal">null</span>) &#123;</span><br><span class="line">                w.lock();</span><br><span class="line">                <span class="comment">// If pool is stopping, ensure thread is interrupted;</span></span><br><span class="line">                <span class="comment">// if not, ensure thread is not interrupted.  This</span></span><br><span class="line">                <span class="comment">// requires a recheck in second case to deal with</span></span><br><span class="line">                <span class="comment">// shutdownNow race while clearing interrupt</span></span><br><span class="line">                <span class="keyword">if</span> ((runStateAtLeast(ctl.get(), STOP) ||</span><br><span class="line">                     (Thread.interrupted() &amp;&amp;</span><br><span class="line">                      runStateAtLeast(ctl.get(), STOP))) &amp;&amp;</span><br><span class="line">                    !wt.isInterrupted())</span><br><span class="line">                    wt.interrupt();</span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    beforeExecute(wt, task);</span><br><span class="line">                    <span class="type">Throwable</span> <span class="variable">thrown</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        task.run();</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (RuntimeException x) &#123;</span><br><span class="line">                        thrown = x; <span class="keyword">throw</span> x;</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Error x) &#123;</span><br><span class="line">                        thrown = x; <span class="keyword">throw</span> x;</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Throwable x) &#123;</span><br><span class="line">                        thrown = x; <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">Error</span>(x);</span><br><span class="line">                    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                        afterExecute(task, thrown);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                    task = <span class="literal">null</span>;</span><br><span class="line">                    w.completedTasks++;</span><br><span class="line">                    w.unlock();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            completedAbruptly = <span class="literal">false</span>;</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            processWorkerExit(w, completedAbruptly);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
 <p>过程分析：</p>
 <ol type="1">
-<li>如果 task 不为空，则直接执行</li>
-<li>如果 task 为空，则循环不断地通过 getTask 获取任务</li>
-<li>一次执行过程：加锁，调用 task.run 执行任务，释放锁</li>
-<li>执行成功，从线程池中移除 worker</li>
+<li>如果 task 不为空，直接执行，执行完后将 task 设为空</li>
+<li>如果 task 为空，循环不断地通过 getTask 从任务队列中获取任务</li>
+<li>一次任务执行过程：加锁，调用 task.run 执行任务，释放锁</li>
+<li>如果规定时间内无法从任务队列中获取任务，将 worker
+从线程池中移除，结束工作线程</li>
 <li>执行超时，也移除 worker</li>
 </ol>
 <h4 id="gettask">getTask</h4>
@@ -461,8 +466,8 @@ compareAndDecrementWorkerCount 减少 ctl
 <figcaption aria-hidden="true">线程状态变化.drawio</figcaption>
 </figure>
 <blockquote>
-<p>疑问：为什么清理工作线程时，要尝试结束线程池呢？这是当线程池在收到
-shutdown 命令时，进入 SHUTDOWN
+<p>疑问：为什么清理工作线程时，要尝试结束线程池呢？</p>
+<p>答：这是当线程池在收到 shutdown 命令时，进入 SHUTDOWN
 状态，会拒绝新任务的提交，并继续执行任务队列中的任务，每执行完一个任务，判断下任务队列是否被清空，如果清空，则可以从
 SHUTDOWN 状态进入 TIDYING 状态</p>
 <p>下面看下 tryTerminate 方法</p>
@@ -494,8 +499,8 @@ SHUTDOWN 状态进入 TIDYING 状态</p>
 <p>下面用一个图将核心方法串联起来</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建一个固定大小的线程池，包含 4 个线程</span></span><br><span class="line"><span class="type">ExecutorService</span> <span class="variable">executorService</span> <span class="operator">=</span> <span class="type">ThreadPoolExecutor</span> <span class="variable">executor</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">ThreadPoolExecutor</span>(</span><br><span class="line">        <span class="number">5</span>,            <span class="comment">// corePoolSize</span></span><br><span class="line">        <span class="number">10</span>,           <span class="comment">// maximumPoolSize</span></span><br><span class="line">        <span class="number">60L</span>,          <span class="comment">// keepAliveTime</span></span><br><span class="line">        TimeUnit.SECONDS, <span class="comment">// time unit</span></span><br><span class="line">        <span class="keyword">new</span> <span class="title class_">LinkedBlockingQueue</span>&lt;Runnable&gt;(), <span class="comment">// workQueue</span></span><br><span class="line">        <span class="keyword">new</span> <span class="title class_">ThreadPoolExecutor</span>.AbortPolicy() <span class="comment">// handler</span></span><br><span class="line">);</span><br><span class="line"><span class="comment">// 提交 10 个任务到线程池</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) &#123;</span><br><span class="line">   <span class="keyword">final</span> <span class="type">int</span> <span class="variable">taskId</span> <span class="operator">=</span> i;</span><br><span class="line">   executorService.submit(() -&gt; &#123;</span><br><span class="line">       <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 执行任务</span></span><br><span class="line">         		<span class="comment">// ...</span></span><br><span class="line">        &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</span><br><span class="line">            Thread.currentThread().interrupt();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 关闭线程池</span></span><br><span class="line">executorService.shutdown();</span><br></pre></td></tr></table></figure>
 <figure>
-<img src="/images/java/整体流程.drawio.png" alt="整体流程.drawio">
-<figcaption aria-hidden="true">整体流程.drawio</figcaption>
+<img src="/images/java/整体流程.drawio.png" alt="整体流程">
+<figcaption aria-hidden="true">整体流程</figcaption>
 </figure>
 <h2 id="总结">总结</h2>
 <p>本文介绍了 jvm
