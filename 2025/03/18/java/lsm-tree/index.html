@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="LSM-Tree (Log-Structured-Merge Tree) 是一种用于存储键值对的数据结构，经常用于写密集型场景，广泛应用于现代键值存储系统和数据库（如 RocksDB、LevelDB 等），能够提供高效的写入性能和良好的读取效率">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LSM-Tree">
+<meta property="og:url" content="http://shaun2016.github.io/2025/03/18/java/lsm-tree/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="LSM-Tree (Log-Structured-Merge Tree) 是一种用于存储键值对的数据结构，经常用于写密集型场景，广泛应用于现代键值存储系统和数据库（如 RocksDB、LevelDB 等），能够提供高效的写入性能和良好的读取效率">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/B+%E6%A0%91.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/lsm-tree-structure.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/lsm-tree_level.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/lsm-tree_level-1.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/java/lsm-tree_merge.drawio.png">
+<meta property="article:published_time" content="2025-03-18T12:19:34.000Z">
+<meta property="article:modified_time" content="2025-03-18T12:29:26.063Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="数据结构">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/java/B+%E6%A0%91.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2025/03/18/java/lsm-tree/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>LSM-Tree | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2025/03/18/java/lsm-tree/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          LSM-Tree
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2025-03-18 20:19:34 / 修改时间：20:29:26" itemprop="dateCreated datePublished" datetime="2025-03-18T20:19:34+08:00">2025-03-18</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">架构设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>LSM-Tree (Log-Structured-Merge Tree)
+是一种用于存储键值对的数据结构，经常用于写密集型场景，广泛应用于现代键值存储系统和数据库（如
+RocksDB、LevelDB 等），能够提供高效的写入性能和良好的读取效率</p>
+</blockquote>
+<span id="more"></span>
+<blockquote>
+<p>在介绍 LSM-Tree 前，先回顾下 B+树</p>
+</blockquote>
+<p>B+树的数据结构如下：</p>
+<p><img src="/images/java/B+树.drawio.png"></p>
+<p>B+ 树是 MySQL 存储引擎的数据结构，B+
+树的非叶子节点只存键，用于索引，叶子节点存储键和数据（或数据指针），叶子节点相连形成有序链表</p>
+<p>应用在 MySQL 存储引擎上有以下特点：</p>
+<ol type="1">
+<li><strong>高效查询</strong>：B+树的时间复杂度为 O(log
+n)，查找效率高</li>
+<li><strong>范围查询</strong>：B+树的叶子节点通过指针链接成有序链表，非常适合范围查询（如
+<code>BETWEEN</code>、<code>&gt;</code>、<code>&lt;</code>
+等操作）和顺序访问</li>
+<li><strong>磁盘 I/O
+次数少</strong>：B+树的节点可以存储多个键值，树的高度较低，可以减少了磁盘
+I/O 次数（相比B树）</li>
+<li><strong>空间局部性</strong>：访问一个数据中，将数据所在的整个节点加载到内存中，一个节点的大小是磁盘块的整数倍。后续先从内存中访问，由于空间局部性原理，后续的访问很可能命中内存数据，减少访问磁盘次数</li>
+</ol>
+<p>复杂度如下：</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>平均</th>
+<th>最差</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>搜索</td>
+<td>O(logn)</td>
+<td>O(logn)</td>
+</tr>
+<tr class="even">
+<td>插入</td>
+<td>O(logn)</td>
+<td>O(logn)</td>
+</tr>
+<tr class="odd">
+<td>删除</td>
+<td>O(logn)</td>
+<td>O(logn)</td>
+</tr>
+<tr class="even">
+<td>空间</td>
+<td>O(n)</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<p>B+树很适合 MySQL
+的查询、插入、删除等操作，B+树也存在一些问题，主要体现在以下几点：</p>
+<ol type="1">
+<li>插入和删除操作的复杂性：
+<ol type="1">
+<li>B+树在插入和删除数据时，需要保持树的平衡和有序性，可能会导致一些复杂的操作，如节点的分裂和合并，叶子节点内部的数据迁移；</li>
+<li>插入/删除的数据一般分布在不同叶子节点上，会产生很多随机磁盘 IO</li>
+</ol></li>
+<li>顺序访问的效率：虽然B+树的叶子节点通过链表相连，便于范围查询，但叶子节点之间的物理空间是不连续的，如果非常大范围的查询，需要访问大量叶子节点，仍然会产生大量随机磁盘
+IO 访问</li>
+<li>存储利用率低：由于主键不一定是有序递增的，每次插入数据叶子节点未完全填满，产生空间碎片</li>
+</ol>
+<p>可以看出，B+树不适合 <strong>写密集型</strong>
+场景。怎样设计一套适合写密集型场景的存储结构呢？</p>
+<h2 id="设计思路">设计思路</h2>
+<p>下面设计一个适合写密集型场景的 k - v 型 存储结构</p>
+<p><strong>版本1：磁盘追加写</strong></p>
+<p>思路：顺序写比随机写在延迟和吞吐量上都有很大提升，可以将数据追加写到一个文件中</p>
+<table>
+<colgroup>
+<col style="width: 15%">
+<col style="width: 17%">
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">特性</th>
+<th style="text-align: left;">顺序写（HDD）</th>
+<th style="text-align: left;">随机写（HDD）</th>
+<th style="text-align: left;">顺序写（SSD）</th>
+<th style="text-align: left;">随机写（SSD）</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;">几毫秒</td>
+<td style="text-align: left;">几毫秒到十几毫秒</td>
+<td style="text-align: left;">几十微秒</td>
+<td style="text-align: left;">几十到几百微秒</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>吞吐量</strong></td>
+<td style="text-align: left;">100-200 MB/s</td>
+<td style="text-align: left;">1-10 MB/s</td>
+<td style="text-align: left;">500 MB/s 到几 GB/s</td>
+<td style="text-align: left;">100-500 MB/s</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>性能瓶颈</strong></td>
+<td style="text-align: left;">磁盘转速和密度</td>
+<td style="text-align: left;">寻道时间和旋转延迟</td>
+<td style="text-align: left;">闪存芯片带宽</td>
+<td style="text-align: left;">写放大和垃圾回收</td>
+</tr>
+</tbody>
+</table>
+<p>写请求：将 k-v 对 和操作类型写到文件最后；时间复杂度 O(1)</p>
+<p>读请求：从文件最后开始遍历，找到第一个 k-v 对，k = query
+key，如果操作类型是新增、更新，返回
+value，如果操作类型是删除，返回空；时间复杂度 O(n)</p>
+<p>优点：顺序写磁盘代替随机写，提高写性能</p>
+<p>缺点：读请求，查询数据需要遍历全量数据，效率低，有重复冗余数据</p>
+<blockquote>
+<p>如果对全量数据建索引，数据量大的时候，内存是装不下的，将索引放到磁盘中，存在和
+B+ 树一样的问题</p>
+</blockquote>
+<p><strong>版本2：磁盘有序写</strong></p>
+<p>思路：直接写数据是无序的，如果数据是有序的，可以用二分查找提高读性能</p>
+<p>写请求：用二分查找确定位置，插入 k-v 对，时间复杂度 O(logn)</p>
+<p>读请求：二分查找，时间复杂度 O(logn)</p>
+<p>优点：相比版本 1 提高了读性能</p>
+<p>缺点：写数据有随机
+IO，需要用链表维护有序关系，空间碎片化，利用率低</p>
+<p><strong>版本3：内存排序，磁盘追加写</strong></p>
+<p>思路：先写到内存的有序结构排序，写满了再顺序写到磁盘</p>
+<p>写请求：先写到内存有序结构
+M（可以是跳表或红黑树），写满了顺序写到磁盘，生成一个有序块 S，记录每个
+S 的起始位置，清空 M；时间复杂度 O(logn)</p>
+<p>读请求：先查内存 O(logn)，再查磁盘，由于磁盘是部分有序，需要对所有 S
+块从新到旧依次二分查找，时间复杂度 O(mlogn)，m 是有序块个数</p>
+<p>优点：相比版本 2 没有随机
+IO，提高了写性能，磁盘空间连续，没有碎片，空间利用率高</p>
+<p>缺点：1. 有重复冗余数据；2. 读放大；3. 内存写磁盘时无法再写入 4.
+内存数据断电丢失</p>
+<p><strong>版本4：内存排序，异步追加写</strong></p>
+<p>思路：版本3 当内存 M
+满了，在同步写到磁盘的期间，无法继续写入；可以新建一个 M'，新数据写到
+M'，M 继续写磁盘</p>
+<p>写请求：1. 冻结M，使 M 不可变，将 M 刷到磁盘；2. 创建 M'，新数据写入
+M'</p>
+<p>读请求：按 M', M, Sn, Sn-1， ...，S0 的顺序查找</p>
+<p>优点：在写磁盘期间也可以写新数据</p>
+<p>缺点：1. 有重复冗余数据；2. 读放大；3. 内存数据可能断电丢失</p>
+<p><strong>版本5：对有序块 S 添加过滤器</strong></p>
+<p>思路：对于一个有序块 S，可以知道 S 的 key 范围 [kmin, kmax]，但想知道
+key 是否在 S 中，还需要二分搜索；如果提前知道 key 不在 S
+中，可以减少搜索次数</p>
+<p>写请求：在版本 4 基础上，对每个有序块 S 建立布隆过滤器</p>
+<p>读请求：先判断 k 是否在 S 的 key 范围内，再过布隆过滤器，如果 k
+不属于 S，跳过</p>
+<p>优点：提高了对 S 的查询性能</p>
+<p>缺点：同版本 4</p>
+<p><strong>版本6：对有序块合并</strong></p>
+<p>思路：随着有序块 S 的增多，读请求放大的倍数会越来越大，需要对 Sn,
+..., S0 进行合并</p>
+<p>具体怎么合并，直接看 LSM-Tree 的做法</p>
+<h2 id="lsm-tree">LSM-Tree</h2>
+<p><img src="/images/java/lsm-tree-structure.drawio.png"></p>
+<h3 id="核心组件">核心组件</h3>
+<h4 id="memtable">MemTable</h4>
+<p>MemTable
+是内存中的有序结构，可以用跳表或红黑树实现，对写到磁盘的数据预排序</p>
+<p><strong>写操作</strong></p>
+<ul>
+<li>如果 k 在 MemTable 中，覆盖已有的 k-v；如果 k 不在 Memtable，插入到
+MemTable 中</li>
+<li>删除操作，要对 k 加一个删除标记（不能直接删除，磁盘中还可能存在
+k）</li>
+</ul>
+<p>MemTable 中存的是对 key 的最新操作</p>
+<p><strong>读操作</strong></p>
+<ul>
+<li>如果 k 在 MemTable 中，没有删除标记，返回
+k-v；如果有删除标记，返回空</li>
+<li>如果 k 不在 MemTable 中，到磁盘中继续搜索</li>
+</ul>
+<p><strong>Flush</strong></p>
+<p>MemTable 达到一定大小，会把数据 Flush
+到磁盘，生成一个有序的数据块（SSTable）</p>
+<p>Flush 保证了磁盘的顺序写</p>
+<p>为保证 Flush 过程中还可以继续写入 MemTable，先冻结当前 MemTable 为
+readonly 状态，再 flush 到磁盘，同时创建一个新的 Active MemTable
+接收写请求</p>
+<p>Active MemTable：接收新的写入</p>
+<p>Readonly MemTable：用来 Flush 到磁盘生成 SSTable</p>
+<h4 id="sstable">SSTable</h4>
+<p>SSTable（SST）是 Readonly MemTable flush
+到磁盘生成的不可修改、内部有序的文件；基本结构如下：</p>
+<p><img src="/images/java/lsm-tree_level.drawio.png"></p>
+<ol type="1">
+<li>数据块（Data Block）：存储若干个 k-v 对，按 key
+顺序排列，每个数据块的大小通常是固定的，如 64KB</li>
+<li>索引块（Index Block）：快速定位某个 key
+所在的数据块，每个索引条目包括数据块的起始
+key，数据块在文件中的偏移量和大小</li>
+<li>元数据块（Meta Block）：存储布隆过滤器，压缩信息 等</li>
+<li>文件尾部（Footer）：存储 SSTable
+的全局信息，包括索引块的偏移量和大小，元数据块的偏移量和大小，校验和
+等</li>
+</ol>
+<p>可以发现，在一个 SST 中查询 k 的时间复杂度是 O(n*m)，n 是 Data Block
+的个数，m 是一个 Data Block 中 k-v
+对的个数；为保证查询效率，需要控制单个 SSTable 的大小</p>
+<p>假设有 t 个 SST，由于 SST
+之间是无序的，无法建立大小关系，只能从新到旧遍历所有 SST，时间复杂度是
+O(n*m*t)；随着 flush
+次数的增多，对读性能有很大的影响，所以需要不定时合并 SSTable，控制
+SSTable 数量</p>
+<p>在合并两个 SST 时，如果两个 SST key
+的范围没有交集，无法合并，如果有交集，按照归并排序进行合并（有相同的 key
+取新的）</p>
+<h4 id="level">Level</h4>
+<p>SST 数量很多，什么时间对哪些 SST 合并呢？通过 Level
+的设计来解决这个问题</p>
+<p><img src="/images/java/lsm-tree_level-1.png"></p>
+<p>由于热数据访问频率高，冷数据访问频率低，将 SST
+按产生时间分成不同层（从上到下 L1, ..., Ln），新的在上层，旧的在下层</p>
+<p>每层规定如下：</p>
+<ol type="1">
+<li>每层 SST 数量和单个大小有限制，层数越大，SST
+数量越多，单个体积越大</li>
+<li>MemTable Flush 到 L1 层，L1 层 SST 的 key 内部有序，整体无序，key
+有重复</li>
+<li>L2 到 Ln 层，每层 SST 的 key 内部有序，整体有序，key 无重复</li>
+</ol>
+<p><strong>合并流程：</strong></p>
+<ol type="1">
+<li>当 L1 数量超过限制时，发起合并：在 L1 中随机选择一个 SST_1，合并到
+L2</li>
+<li>如果 L2 中没有可以合并的 SST，直接将 SST_1 移动到 L2</li>
+<li>如果在 L2 中找到可以合并的
+SST（1个或多个），用多路归并进行合并，压缩成新的 SST_new</li>
+<li>如果 SST_new 超过 L2 单个大小限制，拆成多个</li>
+<li>如果 L2 SST
+数量超过限制，重复上述流程，向下层合并，直到最后一层</li>
+</ol>
+<p><img src="/images/java/lsm-tree_merge.drawio.png"></p>
+<p>由于 level 2 至 level n 的 SST 都是上层合并产生的，可以保证同层的 key
+没有重复且整体有序</p>
+<p>一次合并可能引发多次合并</p>
+<h4 id="wal-log">WAL Log</h4>
+<p>为防止 MemTable 的数据发生断电丢失，先写到一个日志文件 WAL Log
+中，用来回放操作；</p>
+<p>WAL Log 只需保存 MemTable 中的操作记录，每次清空 MemTable
+后可以生成一个新的 WAL，flush 到磁盘后删除对应的日志文件</p>
+<h3 id="读写流程">读写流程</h3>
+<p>了解完核心组件，看下一个完整的读写流程</p>
+<h4 id="写流程">写流程</h4>
+<p>Set k, v</p>
+<ol type="1">
+<li>写到 Active MemTable</li>
+<li>如果 Active MemTable 已满，冻结为 Readonly MemTable，新建一个 Active
+MemTable</li>
+<li>Readonly MemTable Flush 到磁盘 L1，生成一个 SSTable</li>
+<li>如果 L1 SSTable 数量达到限制，随机选择一个 SSTable 合并到 L2</li>
+<li>如果 L2 也触发合并，依次类推到 Ln</li>
+</ol>
+<h4 id="读流程">读流程</h4>
+<p>get k, v</p>
+<ol type="1">
+<li>读 Active MemTable、Readonly MemTable</li>
+<li>如果未找到 k，从新到旧的顺序依次读 L1 层的 SSTable</li>
+<li>如果 k 在 SSTable 的 key 范围，且通过 Bloom Filter，在 SSTable
+索引中查找所在的 Data Block，在 Data Block 中顺序查找</li>
+<li>如果未找到 k，从左至右的顺序依次读 L2 层的 SSTable，直到 Ln 层</li>
+</ol>
+<h2 id="总结">总结</h2>
+<p>本文介绍了 LSM-Tree 的设计思路，整体结构，核心组件</p>
+<p>优点</p>
+<ol type="1">
+<li>将随机写转为顺序写，写入操作在内存中进行，延迟低，适合
+<strong>高写入</strong> 的场景</li>
+<li>分层结构和索引机制可以高效的处理海量数据</li>
+<li>自动压缩机制，清理重复和过期数据，提高磁盘利用率</li>
+</ol>
+<p>缺点</p>
+<ol type="1">
+<li>读放大：读取时可能需要检查多个 SSTable，导致读取性能下降</li>
+<li>写放大：可能触发多次合并，是一个 IO
+密集型操作，可能降低系统性能</li>
+<li>内存命中率低：只有少部分数据在内存中，大部分读请求要访问磁盘，不适合读密集的场景</li>
+</ol>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://medium.com/@dwivedi.ankit21/lsm-trees-the-go-to-data-structure-for-databases-search-engines-and-more-c3a48fa469d2">LSM
+Trees: the Go-To Data Structure for Databases, Search Engines, and
+More</a></p>
+<p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Log-structured_merge-tree">Log-structured
+merge-tree</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/" rel="tag"># 数据结构</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/02/05/java/threadpool/" rel="prev" title="线程池原理解析">
+      <i class="fa fa-chevron-left"></i> 线程池原理解析
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1%E6%80%9D%E8%B7%AF"><span class="nav-number">1.</span> <span class="nav-text">设计思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#lsm-tree"><span class="nav-number">2.</span> <span class="nav-text">LSM-Tree</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6"><span class="nav-number">2.1.</span> <span class="nav-text">核心组件</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#memtable"><span class="nav-number">2.1.1.</span> <span class="nav-text">MemTable</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#sstable"><span class="nav-number">2.1.2.</span> <span class="nav-text">SSTable</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#level"><span class="nav-number">2.1.3.</span> <span class="nav-text">Level</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#wal-log"><span class="nav-number">2.1.4.</span> <span class="nav-text">WAL Log</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%BB%E5%86%99%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.</span> <span class="nav-text">读写流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%99%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.1.</span> <span class="nav-text">写流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AF%BB%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.2.</span> <span class="nav-text">读流程</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">37</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '0ad7ba7a1986cbd85ae68a9b44c15e5e',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
