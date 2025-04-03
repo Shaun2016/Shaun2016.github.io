@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍增益模型 - Uplift Model">
+<meta property="og:type" content="article">
+<meta property="og:title" content="uplift-model">
+<meta property="og:url" content="http://shaun2016.github.io/2025/04/03/algorithm/uplift-model/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍增益模型 - Uplift Model">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/algorithm/%E7%94%A8%E6%88%B7%E5%88%86%E7%BB%84.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/algorithm/two-model.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/algorithm/uplift_tree_model_demo.drawio.png">
+<meta property="article:published_time" content="2025-04-03T04:09:06.000Z">
+<meta property="article:modified_time" content="2025-04-03T04:36:59.551Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="增益模型">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/algorithm/%E7%94%A8%E6%88%B7%E5%88%86%E7%BB%84.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2025/04/03/algorithm/uplift-model/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>uplift-model | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2025/04/03/algorithm/uplift-model/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          uplift-model
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2025-04-03 12:09:06 / 修改时间：12:36:59" itemprop="dateCreated datePublished" datetime="2025-04-03T12:09:06+08:00">2025-04-03</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍增益模型 - Uplift Model</p>
+</blockquote>
+<span id="more"></span>
+<h2 id="要解决的问题">要解决的问题</h2>
+<p>将有限资源投放正确的人身上，使收益最大化</p>
+<ol type="1">
+<li>如何评估收益</li>
+<li>如何分配资源</li>
+</ol>
+<h2 id="背景">背景</h2>
+<p>目前，商家可以通过多种渠道触达用户，比如广告投放、短信推送、app内部引流
+等营销手段，其背后都是有成本的；营销的目标是
+在固定成本下使总产出最大化</p>
+<p>最关键的一点是<strong>找到哪一部分用户接收干预会带来最大的增量收益</strong></p>
+<p>先看下从干预效果对用户的划分</p>
+<h3 id="营销人群划分">营销人群划分</h3>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>不干预 - 不购买</th>
+<th>不干预 - 购买</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>干预 - 不购买</td>
+<td>Lost causes</td>
+<td>Sleeping dogs</td>
+</tr>
+<tr class="even">
+<td>干预 - 购买</td>
+<td>Persuadble</td>
+<td>Sure things</td>
+</tr>
+</tbody>
+</table>
+<p>Lost causes：无望的人，这类人干预或不干预都不会购买；</p>
+<p>Sleeping dogs：不要惹的人，对干预反感，不干预反而会买；</p>
+<p>Sure
+things：赞同的人，本来就会买，干预后表示认同，即本来就会转化的人；</p>
+<p>Persuadble：说服的人，本来不会买，干预后购买；</p>
+<p>可以看到，对 Lost causes、Sure things
+这两类人，干预前后没有改变用户行为，干预是浪费的；对 Sleeping dogs
+的干预起到了反效果，应避开这类人；对 Persuadble
+的干预产生了正向效果，是真正想触达的用户，即
+<strong>营销敏感人群</strong></p>
+<p>识别营销敏感人群，有以下好处：</p>
+<ul>
+<li><strong>提高营销效率</strong>：将资源集中在最可能响应的人群上，避免浪费在不敏感或自然转化的人群上</li>
+<li><strong>最大化 ROI</strong>：通过精准营销，提高转化率和收入</li>
+<li><strong>个性化营销</strong>：根据敏感人群的特征，设计更有针对性的营销策略</li>
+<li><strong>减少营销疲劳</strong>：避免对不敏感人群过度营销，降低用户反感</li>
+</ul>
+<p>如何识别营销敏感人群呢，下面是个人思路</p>
+<p><strong>思路1</strong>：找到 干预 - 购买 和 不干预 - 不购买
+的人群特征，取交集</p>
+<p>做法：先随机选出两组人群，对组 1 干预，组 2
+不干预，观察用户的购买行为，可以找到干预 - 购买的人群 A，不干预 -
+不购买的人群 B，分析 A、B 人群的共同特征，就是 Persuadble 人群的特征</p>
+<p>存在问题：A、B
+两个人群不一定能得到共同的特征，且需要普遍性的特征才有意义</p>
+<p><strong>思路2：</strong>排除法，找到 干预 - 不购买 和 不干预 - 购买
+的人群特征，不含这些特征的人群就是 Persuadble</p>
+<p>做法：同思路1</p>
+<p>存在问题：有些特征之间有相关的，可能两个特征分开和组合起来的效果不同</p>
+<p>下面看下 Uplift Model 是怎么做的</p>
+<h2 id="uplift-model">Uplift Model</h2>
+<p>Uplift Model
+是一种用于因果推断的机器学习模型，主要用于评估某种干预对个体行为的因果影响。</p>
+<p>传统的因果模型，预测干预对个体行为影响的概率，可以表示为： <span class="math display">\[
+Lift = P(buy|treatment)
+\]</span> Uplift Model
+相比于传统因果模型，其目标是估计干预的<strong>增量效应</strong>，即干预对个体行为的净影响（增量），可以表示为：
+<span class="math display">\[
+Lift = P(buy\ |\ treatment) - P(bug\ |\ no\ treatment)
+\]</span> Lift 是增量值，buy 是个体行为 - 购买，treatment
+是对个体干预，no treatment 是不对个体干预</p>
+<p>例如：总用户有100人，平均分为两组，一组干预，一组不干预；干预组有40人购买，不干预组有20人购买，则增量值
+= 40/50 - 20/50 = 40%</p>
+<blockquote>
+<p>如果我们只关心干预的购买率，会得到收益 = 40/50 =
+80%，但这里是有水分的，因为有40%的收益不需要干预也可以获得，可以减少这部分成本</p>
+</blockquote>
+<p>对个体 i 而言，干预对个体状态或行为会产生因果效应，即 ITE（individual
+treament effect），公式化可表示为： <span class="math display">\[
+ITE_i =p(Y_i|X_i,T_i=1)-p(Y_i|X_i,T_i=0)
+\]</span> Yi 表示用户 i 的行为，如购买</p>
+<p>Xj 表示用户 i 的特征</p>
+<p>Ti 表示对用户 i 是否有干预（1表示有干预）</p>
+<p>ITEi 表示用户 i 在有干预和无干预的结果概率之差</p>
+<p>这里会发现一个问题，当我们计算一个用户的 ITE
+时，我们无法同时观察到该用户在干预和未干预的表现情况，无法统计概率</p>
+<blockquote>
+<p>如果我们1-10天给用户A推了一个广告，统计用户A是否购买；11-20天没有推广告，再统计用户啊是否购买，能否得到干预和未干预购买的概率呢？</p>
+<p>这样是不可以的，因为11-20天的行为受到了1-10天干预的影响；那如果放大时间间隔呢，这样用户特征也可能发生变化，所以在一个用户特征下，我们无法观察到干预和未干预的结果</p>
+</blockquote>
+<p>既然我们无法对一个用户在干预和非干预下进行统计，我们可以对两个有相同特征的用户，分别干预和不干预，再进行统计。假设我们有100个用户，为每个用户生成一些标签，将具有相同标签的用户均分到a组和b组，然后对a组干预，对b组不干预，然后将所有用户的
+ITE 求和，就得到干预的增量值 Lift</p>
+<p>当用户规模很大，我们对所有用户打标分组成本很大，如果对所有用户随机分成两组，那么这两组中每个特征的用户数量近似相等，这样分组和统计就方便很多了</p>
+<figure>
+<img src="/images/algorithm/用户分组.drawio.png" alt="用户分组.drawio">
+<figcaption aria-hidden="true">用户分组.drawio</figcaption>
+</figure>
+<p>这里要注意要随机分组，来保证人群 X 与干预 T
+相互独立，如果将优质用户分到 a 组，非优质用户分到 b
+组，显然这样得到的结果是没有意义的</p>
+<p>假设我们可以计算出一个用户的
+ITE，那么对于任意群体C，怎么计算干预对群体 C 的影响呢</p>
+<p>这里就引出了因果推断中的另一个核心概念：<strong>Conditional Average
+Treatment Effect，即 CATE。</strong>前面提到的 ITE 可以看作是
+CATE的一种特殊情况，即整个样本集合中只有一个元素的场景。CATE
+的表达式如下 <span class="math display">\[
+𝐶𝐴𝑇𝐸:𝜏(𝑥)=𝐸[𝑌(1)−𝑌(0)|𝑋=𝑥] \\
+\]</span> <span class="math display">\[
+=E[Y|T=1,X=x] - E[Y|T=0,X=x]
+\]</span></p>
+<p><span class="math display">\[
+=G(x) - P(x)
+\]</span></p>
+<p>uplift modeling 本质上是通过训练样本去学习不同条件 𝑋 下某个干预 T
+的平均因果效应，得到一个 CATE 的评价值 𝜏 。然后通过该模型 𝜏
+的泛化能力，就可以对新的个体 𝑥 进行干预效果的预测</p>
+<h2 id="数据准备">数据准备</h2>
+<p>做 AB 实验，将候选群体随机分成两部分：对照组 和
+实验组，对照组不做干预，实验组做干预，观察一段时间内候选群体的行为；这样就得到了数据集，包括以下信息：</p>
+<ul>
+<li>干预变量 T（1 实验组，0 对照组）</li>
+<li>行为变量 Y（如是否购买，1 购买，0 未购买）</li>
+<li>特征变量 X（用户特征）</li>
+</ul>
+<h2 id="模型实现">模型实现</h2>
+<p>基本的 Uplift Model 有以下几种：</p>
+<ol type="1">
+<li>间接建模
+<ol type="1">
+<li>T-Leaner</li>
+<li>S-Leaner</li>
+<li>Class Transformation Method</li>
+</ol></li>
+<li>直接建模
+<ol type="1">
+<li>Uplift Tree Model</li>
+</ol></li>
+</ol>
+<h3 id="t-leaner">T-Leaner</h3>
+<p>全称 Two Leaner，它分别训练两个模型来预测干预组和对照组的结果</p>
+<figure>
+<img src="/images/algorithm/two-model.drawio.png" alt="two-model.drawio">
+<figcaption aria-hidden="true">two-model.drawio</figcaption>
+</figure>
+<p><strong>模型训练：</strong></p>
+<ol type="1">
+<li>用实验组样本训练模型 G(x)</li>
+<li>用对照组样本训练模型 P(X)</li>
+</ol>
+<p><strong>模型预测：</strong>输入个体特征 X，计算 G(X) - P(X)
+的值，得到 X 的 CATE</p>
+<p>我们可以定义一个阈值 beta，如果 X 的 CATE &gt; beta，认为 X 是
+营销敏感人群</p>
+<p>优点：原理简单，思路清晰</p>
+<p>缺点：两个模型独立，样本不共享，有误差积累，精度有限</p>
+<h3 id="s-leaner">S-Leaner</h3>
+<p>全称 Single Leaner，使用单一模型来估计干预对个体行为的增量效应</p>
+<p>其核心思想是将干预变量作为一个特征输入模型，通过模型的预测结果来间接计算增量效应</p>
+<p><strong>模型训练：</strong></p>
+<ol type="1">
+<li>将干预变量 T 和用户特征 X 输入模型</li>
+<li>训练一个模型</li>
+</ol>
+<p><span class="math display">\[
+\hat{Y} =f(X,T)
+\]</span></p>
+<p><strong>模型预测：</strong></p>
+<p>对于每个个体，计算在干预和不干预下的预测结果，增量效应计算如下：
+<span class="math display">\[
+Uplift = \hat{Y}(1) - \hat{Y}(0) = f(X,T=1) - f(X,T=0)
+\]</span> 优点：实现简单，适合用户特征为低维数据</p>
+<p>缺点：</p>
+<ul>
+<li>需要干预变量对结果影响较强</li>
+<li>不适合高维度特征：如果特征变量 X 的维度较高，干预变量 T
+的作用可能会被淹没在高维度中，导致模型无法捕捉干预的作用</li>
+</ul>
+<h3 id="class-transformation-method">Class Transformation Method</h3>
+<p>类别转换法（Classs Transformation
+Method）是一种将增量评估问题转为传统分类问题的方法，尤其适合处理二分类问题（如用户是否购买、是否点击等）</p>
+<p>对于每个个体，定义一个新的目标变量 Z： <span class="math display">\[
+Z=Y*T+(1−Y)*(1−T)
+\]</span> 其中，Y 是个体行为（如 是否购买，Y=1 表示购买，Y=0
+表示不购买），T 是干预变量（T = 1 表示干预，T = 0 表示不干预）</p>
+<p>通过 AB实验，我们对样本数据计算 Z：</p>
+<ul>
+<li>实验组 购买的个体：T = 1, Y = 1, Z = 1</li>
+<li>对照组 未购买的个体：T = 0, Y = 0, Z = 1</li>
+<li>其他情况，Z = 0</li>
+</ul>
+<p>可以发现，Z = 1 正好符合营销敏感人群的定义，所以识别 X
+是否为营销敏感人群，就转换为：对 X 预测 Z = 1 的概率</p>
+<p>可以表示为： <span class="math display">\[
+Uplift=P(Z=1∣T=1,X)−P(Z=1∣T=0,X)
+\]</span> <strong>模型训练：</strong></p>
+<p>输入：个体特征 X，X 是否被干预 T，行为 Z</p>
+<p>输出：分类模型</p>
+<p><strong>模型预测：</strong></p>
+<p>输入：个体特征 X</p>
+<p>输出：Z = 1 的概率</p>
+<p><strong>优点：</strong>实现简单，只需要训练一个模型</p>
+<p><strong>缺点：</strong></p>
+<ul>
+<li>仅适用于二分类问题</li>
+<li>依赖于实验组、对照组数据分布是相似的，否则可能导致偏差</li>
+<li>对噪声敏感</li>
+</ul>
+<blockquote>
+<p>T-Leaner、S-Leaner、Class Transformation Method 都是 Uplift Model
+的间接建模，需要计算预测的差值来间接推导增量效果，并非直接估计增量（我也不是很理解）</p>
+</blockquote>
+<p>下面对间接模型的三种方法进行对比</p>
+<table>
+<colgroup>
+<col style="width: 6%">
+<col style="width: 24%">
+<col style="width: 28%">
+<col style="width: 40%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>T-Leaner</th>
+<th>S-Leaner</th>
+<th>Class Transformation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>核心思想</td>
+<td>分别训练干预组和对照组的模型</td>
+<td>将干预变量 T 作为特征输入单一模型</td>
+<td>通过转换目标变量，将增量效应问题转化为分类问题</td>
+</tr>
+<tr class="even">
+<td>目标变量</td>
+<td>分别预测实验组 Y 和对照组 Y</td>
+<td>直接预测目标变量 Y</td>
+<td>构造新目标变量 Z</td>
+</tr>
+<tr class="odd">
+<td>模型数量</td>
+<td>2</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr class="even">
+<td>适用场景</td>
+<td>实验组、对照组差异较大</td>
+<td>低维用户特征，干预影响较强</td>
+<td>二分类问题</td>
+</tr>
+<tr class="odd">
+<td>优点</td>
+<td>简单易实现</td>
+<td>简单易实现，适合低维用户特征</td>
+<td>实现简单，适合二分类问题</td>
+</tr>
+<tr class="even">
+<td>缺点</td>
+<td>误差积累</td>
+<td>对干预变量依赖交强</td>
+<td>仅适用于二分类问题，噪声敏感</td>
+</tr>
+</tbody>
+</table>
+<p>下面来看几个直接估计增量的方法</p>
+<h3 id="uplift-tree-model">Uplift Tree Model</h3>
+<p>增益树模型（Uplift Tree Model）是 Uplift Model
+的一种直接建模方法，直接估计干预对个体行为的增量效应</p>
+<p><strong>核心思想：</strong>通过决策树的分裂准则和分裂点，最大化实验组和对照组之间的增量效应差异</p>
+<p>增益树模型的<strong>分裂准则</strong>包括：</p>
+<p>KL 散度 <span class="math display">\[
+KL = \sum_i p_ilog(\frac{p_i}{q_i})
+\]</span> 欧式距离 <span class="math display">\[
+Euclidean = \sum_i (p_i - q_i)^2
+\]</span> 卡方散度 <span class="math display">\[
+Chi-Square = \sum_i\frac{(p_i-q_i)^2}{q_i}
+\]</span> 其中 pi 是实验组目标变量的分布，qi 是对照组目标变量的分布</p>
+<p>通过上面准则来计算实验组和对照组之间的增量效应差异</p>
+<p><strong>分裂点：</strong>选择某个特征的某个值作为分割条件，将数据集划分成两个子集；增益模型的分裂点选择是基于增量效应的优化</p>
+<figure>
+<img src="/images/algorithm/uplift_tree_model_demo.drawio.png" alt="uplift_tree_model_demo.drawio">
+<figcaption aria-hidden="true">uplift_tree_model_demo.drawio</figcaption>
+</figure>
+<p>如上图，分裂点 A 为 年龄 &gt;
+25，用欧式距离作为分裂准则，计算如下：</p>
+<p>分裂前：p0 = (0.75, 0.25), q0 = (0.5, 0.5)，分裂准则 = (0.75-0.5)^2 -
+(0.25-0.5)^2 = 0.125</p>
+<p>分裂后：左侧 p0 = (1, 0), q0 = (0, 1)，右侧 p1 = (0.5, 0.5), q1 = (1,
+0) <span class="math display">\[
+D(A) = \frac{N_L}{N}P^L(A) + \frac{N_R}{N}P^R(A)
+\]</span> <span class="math display">\[
+= \frac{N_L}{N}[(p_0 - q_0)^2] + \frac{N_R}{N}[(p_1-q_1)^2]
+\]</span></p>
+<p><span class="math display">\[
+=\frac{4}{8}[(1 - 0)^2 + (0-1)^2] + \frac{4}{8}[(0.5-1)^2 + (0.5-0)^2] =
+1.25
+\]</span></p>
+<p>其中，P<sup>L</sup>(A) 是用分裂点 A
+分裂出的左节点的增量效应，N<sub>L</sub> 是 左节点的样本数；</p>
+<p><strong>分裂度量归一化</strong></p>
+<p>与传统的决策树分类模型类似，直接使用信息增益作为分裂标准，会偏向于选择有<strong>特征值差异大的特征</strong>，因为特征值差异大的特征有更多可能的分割点，更容易被选中，从而忽略真正有意义的特征，降低泛化能力；偏向选择特征值差异大的特征可能导致过拟合</p>
+<blockquote>
+<p>特征值差异大的特征：在不同样本之间存在显著差异的特征，这些特征有助于区分不同类别的群体，如年龄、收入</p>
+</blockquote>
+<p>因此，在Dgain(A)
+的基础上，对『有大量差异特征值的特征』进行额外惩罚；惩罚项为： <span class="math display">\[
+Gini(A)=\frac{N_L}{N}Gini(P^L(A)) + \frac{N_R}{N}Gini(P^R(A)) \\
+\]</span> <span class="math display">\[
+Gini(P(A)) = 1-\sum^k_ip_i^2
+\]</span></p>
+<p>其中：pi 是当前节点样本中第 i 个类别所占的比例</p>
+<blockquote>
+<p>假设节点 N 包含 10 个样本，一共两个类别 C、D，C 有 6 个样本，D 有 4
+个样本</p>
+<p>PC = 0.6，PD = 0.4 <span class="math display">\[
+Gini(N) = 1 - (PC^2+PD^2)=1-(0.6^2+0.4^2)=0.48
+\]</span> Gini 系统的取值范围是 [0,
+0.5]，当数据完全纯净时（只有一个类别），Gini = 0，类别均匀分布时，Gini =
+0.5</p>
+</blockquote>
+<p>所以，分裂点 A 的最终增量效应计算表达式为： <span class="math display">\[
+D_{gain}(A)=D(A)-Gini(A)
+\]</span> <strong>模型训练：</strong></p>
+<ol type="1">
+<li>从根节点开始，选择分裂点，让分裂增益最大；用分裂点将父节点分成两个子节点</li>
+<li>递归向下执行上述操作</li>
+<li>剪枝，避免过拟合</li>
+</ol>
+<blockquote>
+<p>常用的剪枝方法有：</p>
+<ol type="1">
+<li>限制树的最大深度</li>
+<li>设置节点分裂所需的最小样本数</li>
+<li>设置叶子节点所需的最小样本数</li>
+<li>设置最大叶节点数</li>
+<li>在分裂准则中加入正则项，惩罚增量效应的波动</li>
+</ol>
+</blockquote>
+<p><strong>模型预测：</strong></p>
+<ol type="1">
+<li>对于每个个体，根据其特征 X
+从根节点开始遍历，直到到达某个叶子节点</li>
+<li>在遍历过程中，根据分裂点选择左分支或者右分支</li>
+<li>到达叶子节点后，计算叶子节点的增量效应</li>
+</ol>
+<p><strong>优点：</strong></p>
+<ul>
+<li>直接优化增量效应</li>
+<li>解释性强：树结构清晰，易于理解和解释</li>
+<li>适合高维度数据：能否处理高维度特征和非线性关系</li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li>计算复杂度高：分裂准则的计算需要较大的计算资源</li>
+<li>对数据分布敏感：如果实验组和对照组的数据分布差异较大，可能导致偏差</li>
+<li>容易过拟合：需要适当剪枝和正则化</li>
+</ul>
+<p><strong>工具：</strong>CausalML、EconML 等库提供了 Uplift Tree
+的实现</p>
+<p>这里只介绍一种直接建模方法，更多的方法，如 Uplift Random
+Forests（提升随机森林），深度学习模型 Causal Effect Variational
+Autoencoder 可自行了解；这里主要了解直接建模的思想，与间接建模的区别</p>
+<h2 id="总结">总结</h2>
+<p>本文介绍了增益模型 Uplift model
+要解决的问题、核心思想，和几种常见的模型实现</p>
+<h2 id="reference">Reference</h2>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/599355166">营销算法炼丹笔记：一文读懂增益模型Uplift
+Model</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/687355859">深度Uplift模型</a></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/682079211">因果推断笔记(一) -
+Uplift Modeling with Meta-Learning
+Method（T-Learner/S-Learner/X-Learner)</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/cymy001/article/details/144195653">Uplift
+Tree Model：增益树模型原理</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%A2%9E%E7%9B%8A%E6%A8%A1%E5%9E%8B/" rel="tag"># 增益模型</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/03/18/java/lsm-tree/" rel="prev" title="LSM-Tree">
+      <i class="fa fa-chevron-left"></i> LSM-Tree
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A6%81%E8%A7%A3%E5%86%B3%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">1.</span> <span class="nav-text">要解决的问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">2.</span> <span class="nav-text">背景</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%90%A5%E9%94%80%E4%BA%BA%E7%BE%A4%E5%88%92%E5%88%86"><span class="nav-number">2.1.</span> <span class="nav-text">营销人群划分</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#uplift-model"><span class="nav-number">3.</span> <span class="nav-text">Uplift Model</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%87%86%E5%A4%87"><span class="nav-number">4.</span> <span class="nav-text">数据准备</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B%E5%AE%9E%E7%8E%B0"><span class="nav-number">5.</span> <span class="nav-text">模型实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#t-leaner"><span class="nav-number">5.1.</span> <span class="nav-text">T-Leaner</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#s-leaner"><span class="nav-number">5.2.</span> <span class="nav-text">S-Leaner</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#class-transformation-method"><span class="nav-number">5.3.</span> <span class="nav-text">Class Transformation Method</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#uplift-tree-model"><span class="nav-number">5.4.</span> <span class="nav-text">Uplift Tree Model</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">7.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">59</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">38</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '72285faf7e82d924b127f223813d3116',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
