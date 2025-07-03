@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="如何统计 uv">
+<meta property="og:type" content="article">
+<meta property="og:title" content="hyperloglog 算法思想与流程">
+<meta property="og:url" content="http://shaun2016.github.io/2025/07/04/algorithm/hyberloglog/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="如何统计 uv">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/architecture/hyperloglog_example.drawio.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/architecture/hyperloglog2.drawio.png">
+<meta property="article:published_time" content="2025-07-03T18:24:45.000Z">
+<meta property="article:modified_time" content="2025-07-03T08:09:48.398Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="algorithm">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/architecture/hyperloglog_example.drawio.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2025/07/04/algorithm/hyberloglog/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>hyperloglog 算法思想与流程 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2025/07/04/algorithm/hyberloglog/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          hyperloglog 算法思想与流程
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2025-07-04 02:24:45" itemprop="dateCreated datePublished" datetime="2025-07-04T02:24:45+08:00">2025-07-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-07-03 16:09:48" itemprop="dateModified" datetime="2025-07-03T16:09:48+08:00">2025-07-03</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/algorithm/" itemprop="url" rel="index"><span itemprop="name">algorithm</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>如何统计 uv</p>
+</blockquote>
+<span id="more"></span>
+<blockquote>
+<p>uv (Unique Visitor)
+独立访客，指在特定时间内访问网站的不同用户数量</p>
+</blockquote>
+<h2 id="问题背景">问题背景</h2>
+<p><strong>问题：</strong>统计某网站一天的 uv</p>
+<p><strong>我的方案：</strong>在内存中建立一个 Set，将用户 id 放入 Set
+中去重，最后计算 Set 中元素的个数</p>
+<p><strong>存在问题：</strong>假设一个用户 id 是 36
+字节，1亿用户需要3G+空间，如果用户量非常大，内存空间可能不够用</p>
+<blockquote>
+<p>其实我们只关心独立用户的数量，不关心有哪些用户</p>
+<p>不保存所有用户能否得到 uv 呢</p>
+</blockquote>
+<h2 id="实现思路">实现思路</h2>
+<h3 id="核心思想">核心思想</h3>
+<p>首先介绍一种概率思想：</p>
+<p><strong>场景：</strong>在一次实验中，投10次硬币，每次正反两面的概率相同</p>
+<p><strong>问题</strong>：首次出现正面在第10次的概率是多少？</p>
+<p><strong>答：</strong>前9次是反面，第10次是正面的概率是
+1/(2<sup>10</sup>) = 1/1024 ≈ 0.0009765625，大约需要做 1024
+次实验，会出现一次</p>
+<p><strong>推广：</strong>首次出现正面在第 n 次的概率是
+1/(2<sup>n</sup>)，平均需要做 2<sup>n</sup>次实验可出现一次。可以发现，n
+与实验次数是正相关的，通过 n 可以估计出实验次数</p>
+<p>回到统计 uv
+的问题中，如果把一次访问看作一轮投硬币实验，相同用户的实验结果是固定的，不同用户的实验结果是随机的，统计所有访问的实验结果，每轮计算首次出现正面的次数，记为
+n，最后统计 n 的最大值 R，用 R 来估计 uv</p>
+<blockquote>
+<p>用 R 怎么计算 uv 呢？</p>
+</blockquote>
+<p>能否用 uv = 2<sup>R</sup>，以 R = 4 为例，从概率模型角度，平均做 16
+次实验，会出现一次 R = 4，不过 R = 4 不一定出现在最后一次，有可能第 8
+次就出现了 R = 4，但是在第 8 次时我们估计 uv = 16，与实际结果 uv = 8
+相差很大</p>
+<blockquote>
+<p>可以用 <strong>分桶平均</strong> 来减少误差</p>
+</blockquote>
+<h3 id="分桶平均">分桶平均</h3>
+<p>将数据分为 m 个桶中，每个桶分别估计 uv，再取平均数</p>
+<figure>
+<img src="/images/architecture/hyperloglog_example.drawio.png" alt="hyperloglog_example.drawio">
+<figcaption aria-hidden="true">hyperloglog_example.drawio</figcaption>
+</figure>
+<p>比较单桶、分桶的误差</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>结果</th>
+<th>误差</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>单桶</td>
+<td>16</td>
+<td>100%</td>
+</tr>
+<tr class="even">
+<td>分桶</td>
+<td>8</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>可以发现，分桶平均后的估计值与实际值更接近，误差更小</p>
+<h3 id="调和平均">调和平均</h3>
+<blockquote>
+<p>算术平均数容易受极端值影响，比如某一个桶的 R
+极大时，算术平均数会显著高估，使用调和平均数可以加强对离散值的鲁棒性</p>
+<p>调和平均数是一组数的倒数的算术平均数的倒数</p>
+</blockquote>
+<figure>
+<img src="/images/architecture/hyperloglog2.drawio.png" alt="hyperloglog2.drawio">
+<figcaption aria-hidden="true">hyperloglog2.drawio</figcaption>
+</figure>
+<p>在有极端值时，比较不同计算方式的误差</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>结果</th>
+<th>误差</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>单桶</td>
+<td>1024</td>
+<td>12700%</td>
+</tr>
+<tr class="even">
+<td>分桶 - 算术平均数</td>
+<td>260</td>
+<td>3150%</td>
+</tr>
+<tr class="odd">
+<td>分桶 - 调和平均数</td>
+<td>6.45</td>
+<td>19.37%</td>
+</tr>
+</tbody>
+</table>
+<p>可以发现，分桶情况下，调和平均数估计结果最接近实际值，误差最小，受极端值影响最少</p>
+<blockquote>
+<p>hyperloglog
+就是基于这个思想，来统计大规模数据基数的方法，下面看下具体实现</p>
+</blockquote>
+<h2 id="hyperloglog-执行步骤">hyperloglog 执行步骤</h2>
+<p><strong>步骤1. 哈希映射</strong></p>
+<p><strong>目的：</strong>将输入元素映射到一个固定长度的二进制串，模拟投硬币实验</p>
+<p>方法：使用哈希函数对输入元素求哈希值（固定长度的二进制串），哈希函数具有良好的随机性和均匀性，以确保生成的哈希值尽可能分散</p>
+<hr>
+<p><strong>步骤2. 分桶</strong></p>
+<p><strong>目的：</strong>减少误差</p>
+<p><strong>方法：</strong>将哈希值分成多个桶，假如哈希值是 64
+位，可以将前 6 位作为桶的索引，这样就有 64 个桶</p>
+<hr>
+<p><strong>步骤3.</strong> <strong>计算前导零</strong></p>
+<p><strong>目的：</strong>统计每个桶中最大的哈希值前导零数量</p>
+<p>方法：对于每个输入元素，计算前导零数量 R（不计算索引部分，即从第 7
+位到 64 位），如果 R 大于元素所在桶当前记录的最大 R 值，更新该桶的最大 R
+值</p>
+<hr>
+<p><strong>步骤4.</strong> <strong>计算调和平均数</strong></p>
+<p><strong>目的：</strong>避免极端数据对平均数的影响过大</p>
+<p><strong>方法：</strong>计算所有桶中记录的最大前导零数的调和平均数 H
+<span class="math display">\[
+H = \frac{m}{\sum_{i=1}^{m}{ {2^{-R[i]}} }}
+\]</span> 其中，m 是桶的数量，R[i] 是第 i 个桶记录的最大前导零数</p>
+<p><strong>步骤5. 基数估算与修正</strong></p>
+<p>目的：根据调和平均数估算基数，并进行必要的修正以提高准确性</p>
+<p>方法：使用调和平均数来估算基数 E，估算公式为： <span class="math display">\[
+E = \alpha_m*m*H
+\]</span> 其中 α<sub>m</sub> 是一个与桶数量 m
+相关的常数（0.709，m=64时），用于修正估计偏差</p>
+<p>对于小基数情况，可能需要额外的修正策略</p>
+<blockquote>
+<p>为什么使用 α<sub>m</sub>*m
+修正，涉及到比较多的数学问题，目前无法理解</p>
+</blockquote>
+<h2 id="reference">Reference</h2>
+<p>https://en.wikipedia.org/wiki/HyperLogLog</p>
+<p>https://engineering.fb.com/2018/12/13/data-infrastructure/hyperloglog/</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/algorithm/" rel="tag"># algorithm</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/06/27/k8s/k8s-learn/" rel="prev" title="k8s-learn">
+      <i class="fa fa-chevron-left"></i> k8s-learn
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF"><span class="nav-number">2.</span> <span class="nav-text">实现思路</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="nav-number">2.1.</span> <span class="nav-text">核心思想</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%A1%B6%E5%B9%B3%E5%9D%87"><span class="nav-number">2.2.</span> <span class="nav-text">分桶平均</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B0%83%E5%92%8C%E5%B9%B3%E5%9D%87"><span class="nav-number">2.3.</span> <span class="nav-text">调和平均</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#hyperloglog-%E6%89%A7%E8%A1%8C%E6%AD%A5%E9%AA%A4"><span class="nav-number">3.</span> <span class="nav-text">hyperloglog 执行步骤</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">61</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">38</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '8a0b9ef91f69278a0da07d61184d4f03',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
