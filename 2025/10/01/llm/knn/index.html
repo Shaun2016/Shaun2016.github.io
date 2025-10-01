@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="RAG 在检索时，会在向量数据库中找出与查询向量 P 最相近的 k 个文档向量，如何从海量向量中找出与 P 最相近 k 个向量呢，这是一个 K 近邻问题（ K-Nearest Neighbors，KNN） 本文介绍下问题 KNN 的两种方法">
+<meta property="og:type" content="article">
+<meta property="og:title" content="K 近邻问题 KNN">
+<meta property="og:url" content="http://shaun2016.github.io/2025/10/01/llm/knn/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="RAG 在检索时，会在向量数据库中找出与查询向量 P 最相近的 k 个文档向量，如何从海量向量中找出与 P 最相近 k 个向量呢，这是一个 K 近邻问题（ K-Nearest Neighbors，KNN） 本文介绍下问题 KNN 的两种方法">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/dk-tree.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/example1.png">
+<meta property="article:published_time" content="2025-10-01T03:36:06.000Z">
+<meta property="article:modified_time" content="2025-10-01T03:36:55.648Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="llm">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/llm/dk-tree.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2025/10/01/llm/knn/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>K 近邻问题 KNN | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2025/10/01/llm/knn/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          K 近邻问题 KNN
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2025-10-01 11:36:06 / 修改时间：11:36:55" itemprop="dateCreated datePublished" datetime="2025-10-01T11:36:06+08:00">2025-10-01</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/llm/" itemprop="url" rel="index"><span itemprop="name">llm</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>RAG 在检索时，会在向量数据库中找出与查询向量 P 最相近的 k
+个文档向量，如何从海量向量中找出与 P 最相近 k 个向量呢，这是一个 K
+近邻问题（ K-Nearest Neighbors，KNN）</p>
+<p>本文介绍下问题 KNN 的两种方法</p>
+</blockquote>
+<span id="more"></span>
+<p>KNN
+暴力的方法，可以计算查询点与数据集中每个点的距离，然后全部放入大顶堆中，返回
+k 个点，时间复杂度是 O(d * nlogn)，n 是节点个数，d 是维度，当 n
+很大时，这种方法会非常耗时</p>
+<p>下面介绍两种不需要遍历所有数据的方法</p>
+<h3 id="kd-tree">KD-Tree</h3>
+<p>K-Dimensional Tree，是一种用于组织 k
+维空间数据的数据结构，主要用于范围搜索和最近邻搜索</p>
+<h4 id="核心思想">核心思想</h4>
+<p>递归地对 k 维空间进行划分，将空间划分为若干个小区域</p>
+<h4 id="数据结构">数据结构</h4>
+<p>二叉树，每个节点保存一个数据和划分维度</p>
+<h4 id="构建过程">构建过程</h4>
+<p>开始时的 KD-Tree 是空树，递归地向 KD-Tree
+上添加子节点，包含以下步骤：</p>
+<ol type="1">
+<li><p><strong>选择划分维度（split_dim）</strong>：当前节点应该基于哪个维度划分，常用有两种方法：</p>
+<ol type="1">
+<li><p><strong>循环选择</strong>：从根节点（深度为0）开始，第 depth
+层的节点使用第 (depth % k) 维度来划分，k 为总维度数</p>
+<p>优点：实现简单，计算开销小</p>
+<p>缺点：如果数据在某个维度上方差很小，轮流划分可能不会产生最有效的分割</p></li>
+<li><p><strong>最大方差法</strong>：在每个节点，计算<strong>当前数据集</strong>（分配到该节点为根节点子树的数据）在所有
+k 个维度上的方差，选择方差最大的维度划分</p>
+<p>思路：方差越大，说明数据越分散，更有效的划分数据集</p>
+<p>优点：通常来说可以生成搜索性能更好的树</p>
+<p>缺点：构建过程计算开销大</p></li>
+</ol></li>
+<li><p><strong>选择划分值（split_value）</strong>：在选定的维度下，用什么值来划分，希望划分后两边数据量相差不大，否则会不平衡，最常用的是用中位数</p></li>
+<li><p><strong>创建节点</strong>：在 KD-Tree 上新建节点，节点的值是
+split_value 所在的数据</p></li>
+<li><p><strong>划分</strong>：根据split_dim 和
+split_value，将数据划分为左右两个子集</p></li>
+<li><p><strong>向下递归</strong>：递归构建左右子树</p></li>
+</ol>
+<blockquote>
+<p>左子树的数据在 split_dim 上的值一定<strong>小于</strong>
+split_value，右子树的数据在 split_dim
+上的值一定<strong>大于等于</strong> split_value</p>
+</blockquote>
+<p>举例说明：k=3, n = 6</p>
+<p>数据集：A(1, 2, 3), B(4, 5, 6), C(7, 8 ,9), D(10, 11, 12), E(13, 14,
+15), F(16, 17, 18)</p>
+<p>构建过程：</p>
+<ol type="1">
+<li>depth = 0
+<ol type="1">
+<li>选择维度：0 % 3 = 0</li>
+<li>当前数据集：A, B, C, D, E, F</li>
+<li>选择划分值：第 0 维数据=[1, 4, 7, 10, 13, 16]，划分值取中位数 7</li>
+<li>创建节点：划分值对应数据 C(7, 8 ,9) 作为根节点</li>
+<li>划分子树：
+<ol type="1">
+<li>左子树（第 0 维 &lt; 7）：A(1, 2, 3), B(4, 5, 6)</li>
+<li>右子树（第 0 维 &gt;= 7）：D(10, 11, 12), E(13, 14, 15), F(16, 17,
+18)</li>
+</ol></li>
+</ol></li>
+<li>depth = 1 左子树
+<ol type="1">
+<li>选择维度：1 % 3 = 1</li>
+<li>当前数据集：A, B</li>
+<li>选择划分值：第 1 维数据=[2, 5]，划分值取中位数 2</li>
+<li>创建节点：划分值对应数据 A(1, 2, 3) 创建节点</li>
+<li>划分子树：
+<ol type="1">
+<li>左子树：空</li>
+<li>右子树：B(4, 5, 6)</li>
+</ol></li>
+</ol></li>
+<li>depth = 1 右子树
+<ol type="1">
+<li>选择维度：1 % 3 = 1</li>
+<li>当前数据集：D, E, F</li>
+<li>选择划分值：第 1 维数据=[11, 14, 17]，划分值取中位数 14</li>
+<li>创建节点：划分值对应数据 E(13, 14, 15) 创建节点</li>
+<li>划分子树：
+<ol type="1">
+<li>左子树：D(10, 11, 12)</li>
+<li>右子树：F(16, 17, 18)</li>
+</ol></li>
+</ol></li>
+</ol>
+<p>当前节点包含的数据只有1个时，递归结束，该节点作为叶子节点</p>
+<p>最终的 KD-Tree 为</p>
+<p><img src="/images/llm/dk-tree.png" alt="dk-tree" style="zoom:80%;"></p>
+<h4 id="搜索过程">搜索过程</h4>
+<p>下面介绍 DK-Tree 的两个常见的应用场景：范围搜索 和 KNN</p>
+<p><strong>DK-Tree 的范围搜索</strong></p>
+<p>假设搜索范围为 [min<sub>0</sub>, max<sub>0</sub>] * [min<sub>1</sub>,
+max<sub>1</sub>] * ... * [min<sub>k</sub>, max<sub>k</sub>]</p>
+<p>搜索过程从根节点开始，递归进行以下判断：</p>
+<ol type="1">
+<li>如果当前节点 P 在范围内，将 P 加入到结果集中</li>
+<li>决定递归搜索哪个子树：
+<ol type="1">
+<li>确定 P 的划分维度 d，P 在 d 维度的值为 x</li>
+<li>如果 x &lt;= min<sub>p</sub>，说明左子树所有节点的 d 维度值都小于
+min<sub>p</sub>，左子树可以剪枝，否则遍历左子树</li>
+<li>如果 x &gt; max<sub>p</sub>，说明右子树所有节点的 d 维度值都大于
+max<sub>p</sub>，右子树可以剪枝，否则遍历右子树</li>
+</ol></li>
+<li>递归终止条件：当前节点为空</li>
+</ol>
+<p><strong>DK-Tree 的 KNN 搜索</strong></p>
+<p>暴力的 knn 是遍历整颗树，计算每个节点与目标点 P
+的距离，找到距离最小的 n 个节点。可以利用 KD-Tree
+的特性来剪枝提高遍历效率</p>
+<p>假设当前已经遍历了 n 个节点，最大距离是
+d<sub>max</sub>，如果子树中所有节点到 P 的最小距离大于
+d<sub>max</sub>，则可以直接跳过该子树；但是最小距离还是要遍历整颗子树才能得到，转为计算
+P 到子树的超平面距离的方式</p>
+<blockquote>
+<p>子树的超平面：由子树跟节点的 split_dim 和 split_value
+定义的无限平面</p>
+</blockquote>
+<p>在 DK-Tree 中，每个节点可以看做对当前数据集在 split_dim 维度用
+split_value 分割成两部分，split_dim 与 split_value
+就构成了一个超平面，左子树的数据都在超平面的一侧，右子树的数据都在超平面的另一侧</p>
+<p>设 P 到超平面的距离为 dist</p>
+<p>核心思想：以 P 为中心，半径 d<sub>max</sub>
+为半径的超圆面，如果超圆面与超平面没有交集，则对超平面另一侧剪枝，具体为：</p>
+<ul>
+<li>如果 d<sub>max</sub> &lt;
+dist，另一侧整个空间都不存在更近的点，可以剪枝</li>
+<li>如果 d<sub>max</sub> &gt;=
+dist，另一侧可能存在更近的点，不可剪枝</li>
+</ul>
+<figure>
+<img src="/images/llm/example1.png" alt="超平面">
+<figcaption aria-hidden="true">超平面</figcaption>
+</figure>
+<p>我们将整个过程分为几个阶段，假设 K=1（最近邻），可以轻松的推广到 K
+&gt; 1</p>
+<p><strong>阶段一：确定初始节点</strong></p>
+<blockquote>
+<p>找到目标点 P 较近的点，得到较小的初始距离作为比较基准，有利于剪枝</p>
+</blockquote>
+<ol type="1">
+<li>从根节点开始，比较 P[split_dim] 与 split_value 大小</li>
+<li>如果 P[split_dim] &lt;
+node.split_value，进入左子树，否则进入右子树；</li>
+<li>直到叶子节点 D，计算 min_dist = dist(P, D)</li>
+</ol>
+<p><strong>阶段二：回溯父节点</strong></p>
+<blockquote>
+<p>假设 N 的左子节点是 P，右子节点是 R</p>
+</blockquote>
+<ol type="1">
+<li>回溯到父节点 N，计算 dist(P, N)，如果 dist(P, N) &lt; min_dist，则 N
+为最近邻，更新 min_dist</li>
+<li>计算 P 到 N 的划分超平面的距离 d，如果 d &gt;
+min_dist，另一侧不可能存在更近邻的点，跳过整个另一侧子树；如果 d &lt;=
+min_dist，可能存在更近的点，继续检索</li>
+</ol>
+<p><strong>阶段三：检索另一侧子树</strong></p>
+<blockquote>
+<p>另一侧子树的根节点为 R</p>
+</blockquote>
+<ol type="1">
+<li>从 R 开始，递归执行阶段一、二、三</li>
+<li>递归结束条件：回溯到 R</li>
+<li>递归调用完成后，会带着子树中找到的最佳结果返回</li>
+</ol>
+<p><strong>阶段四：继续向上回溯</strong></p>
+<p>完成了对子树 N 所有数据的检查后，继续向上回溯 N
+的父节点，重复上述阶段，直到回溯到整个树的根节点</p>
+<p>在最近邻（K=1）问题中，超球面半径是 min_dist，当 K &gt; 1
+时，替换成大顶堆堆顶值即可</p>
+<h4 id="优缺点">优缺点</h4>
+<p>优点：</p>
+<ol type="1">
+<li>低维空间查询高效：对于低维数据（通常 k &lt;
+10~20），性能远高于暴力线性扫描，时间复杂度可接近O(logn)</li>
+<li>实现简单</li>
+<li>内存开销小</li>
+<li>适用于精确查询</li>
+</ol>
+<p>缺点：</p>
+<ol type="1">
+<li>维度灾难：当数据维度 k 较高时，KD-Tree
+的性能会急剧下降，甚至退化为近似线性扫描（原因：高维度空间，以查询点为圆心的超球面更大概率与划分超平面相交，剪枝效率大大降低）</li>
+<li>对数据分布敏感：当某个维度的数据分布不均，可能导致分割后两边数据量差异很大，会出现很不平衡的树</li>
+<li>不适合动态数据集：如果数据要频繁变更，维护树的平衡性的代价会非常高昂</li>
+<li>不适合非欧式空间：KD-Tree
+严重依赖于欧几里得空间的坐标轴，对于其他距离度量（如余弦距离）无法适用</li>
+</ol>
+<blockquote>
+<p>为了解决 KD-Tree 在高维空间下效率问题，下面介绍一下 Ball-Tree</p>
+</blockquote>
+<h3 id="ball-tree">Ball-Tree</h3>
+<p>Ball-Tree 是一种专门解决 KD-Tree
+在高维空间中性能退化问题而设计的空间索引数据结构</p>
+<h4 id="核心思想-1">核心思想</h4>
+<p>用一系列层层嵌套的「超球面」来划分数据，利用点到球面的几何距离，在搜索中跳过不可能包含结果的区域</p>
+<h4 id="数据结构-1">数据结构</h4>
+<p>二叉树，非叶子节点保存球心和半径，叶子节点保存球心、半径和若干数据</p>
+<h4 id="构建过程-1">构建过程</h4>
+<blockquote>
+<p>Ball-Tree 的每个节点代表一个超球面，包含了该节点下所有数据</p>
+<p>根节点的超球面包含了全部数据</p>
+<p>叶子节点容量 s：叶子节点的数据量不超过 s</p>
+<p>如果节点数据超过 s，要拆成两个不相交的子集，分配到子节点上</p>
+</blockquote>
+<p>从根节点开始向下构建</p>
+<ol type="1">
+<li><p>为当前节点 N 创建球体</p>
+<p>输入：当前数据集合 G</p>
+<p>计算球心：计算 G 中所有节点的质心（各维度坐标的均值）</p>
+<p>计算半径：计算球心到 G 中所有点的最远距离</p></li>
+<li><p>分裂节点</p>
+<p>如果 N
+的数据量大于叶子节点容量，需要分裂成两个子集，并希望两个子集尽可能远离，以下是一种常用策略：最远点法</p>
+<ol type="1">
+<li>从 G 中随机选择一个点 p1</li>
+<li>在 G 中找离 p1 最远的点 p2</li>
+<li>将 P 划分到两个集合中：比较 P 中所有点到 p1、p2 的距离，离 p1
+更近的点作为左子集P<sub>L</sub>（包括p1），离 p2 更近的点作为右子集
+P<sub>R</sub>（包括p2）</li>
+</ol></li>
+<li><p>递归构建</p>
+<ol type="1">
+<li>使用 P<sub>L</sub> 递归地构建 N 的左子树</li>
+<li>使用 P<sub>R</sub> 递归地构建 N 的右子树</li>
+<li>结束条件：当前节点的数据数量小于等于叶子节点容量</li>
+</ol></li>
+</ol>
+<h4 id="搜索过程-1">搜索过程</h4>
+<p>先以 K = 1 （最近邻）为例，再推广到 K &gt; 1（KNN）</p>
+<blockquote>
+<p>思路：</p>
+<ol type="1">
+<li>目标点 P，假设当前最近邻节点到 P 距离是 min_dist，如果 P
+到超球面的距离 &gt; min_dist，则超球面不会有更近邻的点</li>
+<li>遍历所有节点，利用上述条件，判断是否剪枝</li>
+<li>优先遍历距离更近的节点，得到更小的基准，提高剪枝概率</li>
+</ol>
+</blockquote>
+<p>点 P 到节点 N（超球面球心为 O，半径为 r）的距离： <span class="math display">\[
+dist(P, N) = max(0, dist(P, O) - r)
+\]</span> 如果 P 在超球面内，dist(P, N) = 0，如果 P 在超球面外，dist(P,
+N) &gt; 0</p>
+<p>搜索过程如下（从根节点开始，递归进行）：</p>
+<ol type="1">
+<li>使用一个优先队列（最小堆）维护节点的访问顺序（先访问距离近的节点球面），初始最短距离
+best_dist = ∞，最近邻点 nearest_neighbor = null</li>
+<li>从根节点开始，将根节点放入优先队列</li>
+<li>从优先队列取出节点
+<ol type="1">
+<li>如果该节点是非叶子节点，检查它的两个子节点：
+<ol type="1">
+<li>对于每个子节点 C，计算 dist(P, C)</li>
+<li>剪枝：如果 dist(P, C) &lt;
+best_dist，说明该子节点可能存在更近的点，将子节点 C
+加入优先队列；否则，跳过整个子树</li>
+<li>如果</li>
+</ol></li>
+<li>如果该节点是叶子节点，遍历叶子节点内的每个数据点，计算每个点到 P
+的距离，如果存在更小距离，更新 best_dist、nearest_neighbor</li>
+</ol></li>
+<li>终止与返回：当优先队列为空时，此时 nearest_neighbor 即为最近邻</li>
+</ol>
+<p>对于 K &gt; 1，只需将 best_dist 和 nearest_neighbor 替换为一个能容纳
+K 个候选点的最大堆，best_dist 为堆顶数据点的距离</p>
+<h4 id="优缺点-1">优缺点</h4>
+<p>优点：</p>
+<ol type="1">
+<li>高维度搜索性能高：相同数据集，超球面比轴对齐的超平面的几何空间更小，更容易不相交，提高剪枝概率</li>
+<li>对数据分布不敏感：Ball-Tree
+不依赖于坐标轴划分，即使某个维度数据分布不均，不会影响平衡</li>
+<li>支持任意距离度量：不仅使用欧式距离，还适用余弦相似度等距离</li>
+<li>结果精确</li>
+</ol>
+<p>缺点：</p>
+<ol type="1">
+<li>构建成本高</li>
+<li>内存开销大：每个节点存储球心和半径</li>
+<li>动态更新困难：数据集插入或删除后，重新计算受影响的球心和半径并保持树平衡的成本很高</li>
+</ol>
+<h4 id="kd-tree-与-ball-tree-的比较">KD-Tree 与 Ball-Tree 的比较</h4>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>KD-Tree</th>
+<th>Ball-Tree</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>构建速度</td>
+<td>更快</td>
+<td>较慢</td>
+</tr>
+<tr class="even">
+<td>低维数据</td>
+<td>更快</td>
+<td>较慢</td>
+</tr>
+<tr class="odd">
+<td>高维数据</td>
+<td>差，易退化</td>
+<td>远优于 KD-Tree</td>
+</tr>
+<tr class="even">
+<td>内存开销</td>
+<td>较低</td>
+<td>较高</td>
+</tr>
+<tr class="odd">
+<td>数据分布</td>
+<td>敏感</td>
+<td>不敏感</td>
+</tr>
+<tr class="even">
+<td>距离衡量</td>
+<td>仅欧式距离</td>
+<td>任意度量</td>
+</tr>
+<tr class="odd">
+<td>动态更新</td>
+<td>成本大</td>
+<td>成本大</td>
+</tr>
+<tr class="even">
+<td>结果精确</td>
+<td>精确</td>
+<td>精确</td>
+</tr>
+</tbody>
+</table>
+<h3 id="总结">总结</h3>
+<p>本文介绍了两种精确 KNN 的方法：KD-Tree 和
+Ball-Tree，核心思想都是将数据集划分为多个几何空间，通过空间距离进行剪枝，减少遍历数量；</p>
+<p>这两种方法有一个共同问题：需要构建一颗静态二叉树，在数据量很大的情况下，构建成本高，数据变化维护难度大，随着二叉树高度增加，检索时间也受影响</p>
+<p>有时我们更追求查询时间，不需要完全精确的结果，比如准确率大于 95%
+就可以接受，在下一篇文章里将讨论这种近似最近邻的方法</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/llm/" rel="tag"># llm</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/09/12/llm/llm-overview/" rel="prev" title="大模型应用技术综述">
+      <i class="fa fa-chevron-left"></i> 大模型应用技术综述
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#kd-tree"><span class="nav-number">1.</span> <span class="nav-text">KD-Tree</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="nav-number">1.1.</span> <span class="nav-text">核心思想</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.2.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B"><span class="nav-number">1.3.</span> <span class="nav-text">构建过程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%90%9C%E7%B4%A2%E8%BF%87%E7%A8%8B"><span class="nav-number">1.4.</span> <span class="nav-text">搜索过程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BC%98%E7%BC%BA%E7%82%B9"><span class="nav-number">1.5.</span> <span class="nav-text">优缺点</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ball-tree"><span class="nav-number">2.</span> <span class="nav-text">Ball-Tree</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3-1"><span class="nav-number">2.1.</span> <span class="nav-text">核心思想</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.2.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B-1"><span class="nav-number">2.3.</span> <span class="nav-text">构建过程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%90%9C%E7%B4%A2%E8%BF%87%E7%A8%8B-1"><span class="nav-number">2.4.</span> <span class="nav-text">搜索过程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BC%98%E7%BC%BA%E7%82%B9-1"><span class="nav-number">2.5.</span> <span class="nav-text">优缺点</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#kd-tree-%E4%B8%8E-ball-tree-%E7%9A%84%E6%AF%94%E8%BE%83"><span class="nav-number">2.6.</span> <span class="nav-text">KD-Tree 与 Ball-Tree 的比较</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">64</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">39</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '753dae7d55e3958004071730e3051328',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
