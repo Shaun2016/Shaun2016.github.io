@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文介绍一种估计余弦相似度的算法：simHash">
+<meta property="og:type" content="article">
+<meta property="og:title" content="余弦相似度估计算法：simHash">
+<meta property="og:url" content="http://shaun2016.github.io/2025/10/26/llm/simHash/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="本文介绍一种估计余弦相似度的算法：simHash">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/immi/%E6%B3%95%E5%90%91%E9%87%8F-2025-03-16-1414.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/immi/%E6%97%A0%E6%A0%87%E9%A2%98-2025-03-16-1414.png">
+<meta property="article:published_time" content="2025-10-25T16:05:04.000Z">
+<meta property="article:modified_time" content="2025-10-25T16:06:04.126Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="llm">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/immi/%E6%B3%95%E5%90%91%E9%87%8F-2025-03-16-1414.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2025/10/26/llm/simHash/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>余弦相似度估计算法：simHash | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2025/10/26/llm/simHash/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          余弦相似度估计算法：simHash
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2025-10-26 00:05:04 / 修改时间：00:06:04" itemprop="dateCreated datePublished" datetime="2025-10-26T00:05:04+08:00">2025-10-26</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/llm/" itemprop="url" rel="index"><span itemprop="name">llm</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>本文介绍一种估计余弦相似度的算法：simHash</p>
+</blockquote>
+<span id="more"></span>
+<h3 id="前言">前言</h3>
+<p>上文介绍了一种估计 Jaccard 相似度的方法
+minHash，有些场景要使用余弦相似度，比如文本查重；Jaccard
+与余弦相似度在使用场景上有一些区别</p>
+<table>
+<colgroup>
+<col style="width: 10%">
+<col style="width: 48%">
+<col style="width: 41%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Jaccard 相似度</th>
+<th>余弦相似度</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>特征类型</td>
+<td>集合</td>
+<td>数值向量</td>
+</tr>
+<tr class="even">
+<td>数据频率</td>
+<td>不敏感，只关心是否存在，不关心出现频率</td>
+<td>敏感，出现次数越多的数据权重越大</td>
+</tr>
+<tr class="odd">
+<td>计算</td>
+<td>交集和并集的个数</td>
+<td>向量的点积和模长</td>
+</tr>
+</tbody>
+</table>
+<p>文本相似度用余弦相似度更合适，因为 Jaccard
+相似度对于所有词一视同仁，如果两篇文档使用的词相同，出现最多的词不同，说明它们的主题不同，但是
+Jaccard 相似度等于 1</p>
+<p>余弦相似度更能捕捉到文本的主题，且对文本长度不敏感，比如一篇长文档和一篇短文档谈论同一个主题，如果词出现比例相同，余弦相似度是
+1</p>
+<p>余弦相似度计算公式 <span class="math display">\[
+cos(A,B)=\frac{A\cdot B}{\Vert A\Vert\Vert B\Vert} =
+\frac{\sum_{i=1}^nA_iB_i}{\sqrt{\sum_{i=1}^nA_i^2\sum_{i=1}^nB_i^2}}
+\]</span> 文档的 One-Hot 向量：0, 1 向量，长度 N，N 为文档库词总数</p>
+<p>文档的 IF-IDF 向量：对 One-Hot 向量中的 1 乘以词的 TF-IDF 权重</p>
+<p>使用 TF-IDF 向量计算两个文档的余弦相似度时，由于向量维度太高（N
+可能百万级别），计算成本太高；下面介绍一种降维的估计余弦相似度的方法
+Simhash</p>
+<h3 id="simhash">SimHash</h3>
+<p>SimHash
+是一种为高维特征向量快速生成"指纹"并估计相似度的算法，将高维、稠密的特征向量降维映射到低维的二进制签名，并保证相似的原向量映射后的签名具有较小的海明距离</p>
+<h3 id="核心思想">核心思想</h3>
+<p>SimHash 是一种估计余弦相似度的算法，由 Moses Charikar 在他的论文 <a target="_blank" rel="noopener" href="https://www.cs.princeton.edu/courses/archive/spr04/cos598B/bib/CharikarEstim.pdf">Similarity
+Estimation Techniques from Rounding Algorithms</a>
+中提出，源于<strong>随机超平面投影</strong>（Random Hyperplane
+Projection）的思想</p>
+<p>它的重要理论依据为<strong>：对于两个向量 u,
+v，在一个随机超平面下，它们落在同一侧的概率越高，u, v
+的余弦相似度越高</strong></p>
+<p>在论证这个依据前，先介绍几个基本概念</p>
+<blockquote>
+<p>在 n 维空间中：</p>
+<ol type="1">
+<li><p>任意两个线性无关的向量都可以构成一个二维平面</p></li>
+<li><p>任意两个向量都夹角 <em>θ</em> 范围是 0-180°</p>
+<ol type="1">
+<li><em>θ</em> = 0，两向量同向，cos<em>θ</em> = 1</li>
+<li><em>θ</em> = π/2，两向量正交，cos<em>θ</em> = 0</li>
+<li><em>θ</em> = π，两向量反向，cos<em>θ</em> = -1</li>
+</ol></li>
+<li><p>余弦相似度是衡量两个向量的方向一致性</p>
+<ol type="1">
+<li>余弦相似度 = 1：表示两个向量反向一致</li>
+<li>余弦相似度 = 0：表示两个向量方向正交</li>
+<li>余弦相似度 = -1：表示两个向量方向相反</li>
+</ol></li>
+<li><p>向量 u, v 的点积是 u 向 v
+做投影，点积值是投影长度，点积符号可以判断夹角类型</p>
+<ol type="1">
+<li>点积 &gt; 0，夹角为锐角</li>
+<li>点积 = 0，夹角为直角</li>
+<li>点积 &lt; 0，夹角为钝角</li>
+</ol></li>
+<li><p>什么是超平面</p>
+<p>超平面可以写成 <span class="math display">\[
+w^Tx+b=0
+\]</span> 其中，w 是超平面的法向量，b 是偏置项，x
+是空间中任意向量</p></li>
+<li><p>什么是超平面同侧？</p>
+<p>假设超平面法向量指向的一侧为 E，如果向量 u, v 都指向 E 或都不指向
+E，则 u, v 同侧，否则 u, v 不同侧</p>
+<p>计算方式：u、v 分别与法向量点积，点积符号相同为同侧</p></li>
+<li><p>符号函数 sign</p></li>
+</ol>
+<p>​ 符号函数用来描述向量在超平面哪一侧；假设超平面 C 的法向量
+r，如果向量 u, r 的点积大于等于0，u 在 C 的符号为 1（与 r
+同侧），反之符号为 0（与 r 异侧）</p>
+<p>​
+对于一个随机超平面，比较两个向量的符号是否一致，可以知道两个向量是否在同侧
+<span class="math display">\[
+sign(u, r)=\left\{
+  \begin{aligned}
+      &amp;1 &amp;if\ u\cdot r \geq 0\\
+      &amp;0 &amp;if\ u\cdot r &lt; 0\\
+  \end{aligned}
+\right.
+\]</span>
+<img src="/images/immi/法向量-2025-03-16-1414.png" style="zoom:67%;"></p>
+</blockquote>
+<p>下面论证 SimHash
+的理论依据，首先计算<strong>两个向量在随机超平面同侧的概率</strong></p>
+<p>先看不同侧的概率：当随机超平面在两个向量之间，切割它们的夹角，则两个向量在超平面的不同侧；因此，超平面切割夹角的概率是：夹角/360*2（超平面是没有方向）</p>
+<p><img src="/images/immi/无标题-2025-03-16-1414.png" style="zoom:67%;">
+<span class="math display">\[
+P(sign(u, r) \neq sign(v, r)) = \frac{2\theta(u,v)}{2\pi} =
+\frac{\theta(u,v)}{\pi}
+\]</span> 其中 θ(u, v) 是 u, v 夹角的弧度，所以 u, v
+在超平面同侧的概率是 <span class="math display">\[
+P(sign(u, r) = sign(v, r)) = 1- \frac{\theta(u,v)}{\pi}
+\]</span> 我们知道对于弧度 θ，有 <span class="math display">\[
+\theta=arccos(cos(\theta))
+\]</span> 两个向量被分到随机超平面同侧的概率可以写成 <span class="math display">\[
+P(sign(u, r) = sign(v, r)) = 1- \frac{\theta(u,v)}{\pi} =
+1-\frac{1}{\pi}arccos(cos(\theta))
+\]</span> 其中 cos(θ) 是 u, r 的余弦相似度，由于 arccos(x) 与 x
+有<strong>严格单调递减关系</strong>，所以 P(sign(u, r) = sign(v, r)) 与
+cos(θ) 是<strong>严格单调递增关系</strong></p>
+<p>因此：对于向量 u, v，在一个随机超平面下，它们落在同一侧的概率越高，u,
+v 的余弦相似度越高</p>
+<h3 id="理论到工程">理论到工程</h3>
+<p>按照上述思路，分成四个步骤；对于文档 A、B：</p>
+<ol type="1">
+<li><p>生成 A、B 的特征向量：分词，计算 A、B 的 TD-IDF 向量 <span class="math display">\[
+v = [w1, w2,...,w_N]
+\]</span> N = 词汇表大小（上百万级别）</p></li>
+<li><p>随机生成若干个超平面：随机生成若干个法向量 ri（N
+维随机向量）</p></li>
+<li><p>做实验：对每个超平面，计算 u, v 与法向量 r 的点积符号：sign(u,
+r), sign(v, r)</p></li>
+<li><p>求概率：统计结果，计算 P(sign(u, r) = sign(v, r))</p></li>
+</ol>
+<p>上述过程的计算量非常大，时间复杂度为 O(N*M），M 为超平面个数</p>
+<p>优化：文档的 TD-IDF 向量是高维稀疏向量，大量的 0
+位对点积结果无影响，可以去掉 0 位得到低维稠密向量</p>
+<p>我们将 TD-IDF 向量的 0 位去掉，再与法向量点积，由于每个 TD-IDF 向量非
+0 位的原始位置不同，要维护非 0
+位在原始向量的下标，再与法向量运算，多了一比额外的空间开销</p>
+<p>其实不需要实际生成随机法向量，再去映射位置；只要保证在一次超平面实验中，每个词原始位置在法向量上的值是相同的即可；可以使用哈希函数为每个词生成对应法向量上的值（这与
+minHash 使用若干个哈希函数进行随机排列的思想类似）</p>
+<p>比如使用 MD5 对词 C 生成一个 64 位 bit 串，一次性对这个词生成了 64
+个法向量值，相当于做了 64 次随机超平面实验，第 i 位对应在第 i
+个随机超平面法向量上对应位置的值</p>
+<blockquote>
+<p>举个例子：</p>
+<p>文档 A = ["水果", "商品", "批发"] 的 TD-IDF 向量 u = [0.4, 0.5,
+0.1]</p>
+<p>使用哈希函数将 "水果", "商品", "批发" 这三个词映射为长度为 4 的 bit
+串</p>
+<p>水果 -&gt; [1, 1, 1, 0]</p>
+<p>商品 -&gt; [0, 0, 0, 1]</p>
+<p>批发 -&gt; [0, 1, 0, 1]</p>
+<p>三个 bit 串的第一位，就是第一个随机超平面的法向量 r1 = [1, 0,
+0]，第二个随机超平面的法向量 r2 = [1, 0, 1]，第三个随机超平面的法向量 r3
+= [1, 0, 0]，第四个随机超平面的法向量 r4 = [0, 1, 1]</p>
+<p>文档 A 的 TF-IDF 向量与 r1 的点积为 <span class="math display">\[
+u \cdot r_1 = 0.4 * 1 + 0.5 * 0 + 0.1 * 0 = 0.4
+\]</span>
+这样计算出来的点积符号永远是正的，向量都落在超平面法向量一侧了，无法区分</p>
+<p>所以将法向量中的 0 视作 -1，即 r1 = [1, -1, -1]，计算如下 <span class="math display">\[
+u \cdot r_1 = 0.4 * 1 + 0.5 * (-1) + 0.1 * (-1) = -0.2
+\]</span></p>
+<p><span class="math display">\[
+sign(u, r_1) = sign(-0.2) = 0
+\]</span></p>
+<p>对所有超平面依次计算，就得到所有符号</p>
+</blockquote>
+<p>这样完成了第三步【对每个超平面计算 TF-IDF 向量的符号】</p>
+<p>下面执行第四步【计算 u, v 符号相等的概率】</p>
+<p>假设 u 的符号集合为 [0, 1, 1, 1]，v 的符号集合为 [0, 0, 1, 1]，有 3
+位相等，则相等概率为 3/4，用汉明距离可表示为： <span class="math display">\[
+P = 1 - \frac{HammingDistance(h_u, h_v)}{N}
+\]</span></p>
+<p><span class="math display">\[
+h_u = [sign(u, r_i)], \ i\in[1, N]
+\]</span></p>
+<p>至此，完成了 simHash 理论到工程的演变，下面看下 simHash
+的完整计算步骤</p>
+<h3 id="计算步骤">计算步骤</h3>
+<p>输入一篇文档 Q</p>
+<p><strong>分词</strong></p>
+<p>使用分词器对文档 Q 进行分词，对停用词清晰，提取出 n 个关键词</p>
+<blockquote>
+<p>例如：["算法", "应用", "数据", "行业"]</p>
+</blockquote>
+<p><strong>hash</strong></p>
+<p>使用一个 hash 函数，对每个关键词求 hash 值，转为二进制，取二进制的前
+n 位得到每个词在 n 个法向量上对应的值（<strong>对应步骤二</strong>）</p>
+<blockquote>
+<p>假设 n = 5</p>
+<p>算法 = [10110]</p>
+<p>应用 = [01001]</p>
+<p>数据 = [11001]</p>
+<p>行业 = [10011]</p>
+</blockquote>
+<p><strong>加权</strong></p>
+<p>计算关键词的 TF-IDF，对关键词的 hash 向量加权，如果 hash<sub>i</sub>
+= 1，加权后为权重值，如果是 0，加权后为负的权重值</p>
+<blockquote>
+<p>假设 "算法", "应用", "数据", "行业" 的 TF-IDF 依次是 5, 3, 4, 2 （
+TF-IDF 向量 = [5, 3, 4, 2]）</p>
+<p>加权后</p>
+<p>算法 = [5 -5 5 5 -5]</p>
+<p>应用 = [-3 3 -3 -3 3]</p>
+<p>数据 = [4 4 -4 -4 4]</p>
+<p>行业 = [2 -2 -2 2 2]</p>
+</blockquote>
+<p><strong>合并</strong></p>
+<p>合并所有的特征向量</p>
+<blockquote>
+<p>合并后 = [5-3+4+2, -5+3+4-2, 5-3-4-2, 5-3-4+2, -5+3+4+2] = [8, 0, -4,
+0, 4]</p>
+<p>这里其实与 "水果商品批发" 例子中的计算过程是一样的，只是顺序不同</p>
+<p>"水果商品批发"
+例子是依次计算特征向量与法向量的点积组合起来，这里是先对特征向量每一位乘以法向量，再把加权后的向量相加</p>
+</blockquote>
+<p><strong>降维</strong></p>
+<p>合并后的向量中的每一位，如果大于 0 降维为 1，否则为
+0，得到最终的simhash 指纹签名</p>
+<blockquote>
+<p>simHash(Q) = [1, 0, 0, 0, 1]</p>
+<p><strong>加权、合并、降维 对应步骤三</strong></p>
+</blockquote>
+<p><strong>相似度计算</strong></p>
+<p>simHash(Q) = [1, 0, 0, 0, 1], simHash(R) = [1, 1, 0, 1, 1]，汉明距离
+= 2，相似度 = 1 - 2/5 = 0.6<strong>（对应步骤四）</strong></p>
+<hr>
+<h3 id="与-simhash-的比较">与 simHash 的比较</h3>
+<table>
+<colgroup>
+<col style="width: 6%">
+<col style="width: 47%">
+<col style="width: 46%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>simHash</th>
+<th>minHash</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>核心思想</td>
+<td>基于随机投影，将高维特征映射到低维签名，期望相似向量的海明距离小</td>
+<td>基于集合的随机排列，最小哈希值相等的概率等于 Jaccard 相似度</td>
+</tr>
+<tr class="even">
+<td>设计目标</td>
+<td>估计余弦相似度</td>
+<td>估计 jaccard 相似度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="总结">总结</h3>
+<p>本文介绍了一种估计余弦相似度的方法 simHash，
+并对核心思想进行推导，到工程化的演变历程；SimHash 在 Google
+检索中扮演着「网络去重过滤器」的关键角色，通过生成局部敏感的指纹，精准地识别并过滤掉大量的重复和近似重复网页</p>
+<h3 id="reference">Reference</h3>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_41694906/article/details/138581141">一文了解Simhash原理和用法-计算文章相似度</a></p>
+<p><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1121843">海量数据去重之SimHash算法简介和应用</a></p>
+<p><a target="_blank" rel="noopener" href="https://kiwirafe.github.io/en/simhash-tutorial-1/">Simhash
+Algorithm Explained</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.cs.princeton.edu/courses/archive/spr04/cos598B/bib/CharikarEstim.pdf">Similarity
+Estimation Techniques from Rounding Algorithms</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/llm/" rel="tag"># llm</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/10/05/llm/lsh/" rel="prev" title="近似最近邻搜索 ANN">
+      <i class="fa fa-chevron-left"></i> 近似最近邻搜索 ANN
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#simhash"><span class="nav-number">2.</span> <span class="nav-text">SimHash</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="nav-number">3.</span> <span class="nav-text">核心思想</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%90%86%E8%AE%BA%E5%88%B0%E5%B7%A5%E7%A8%8B"><span class="nav-number">4.</span> <span class="nav-text">理论到工程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97%E6%AD%A5%E9%AA%A4"><span class="nav-number">5.</span> <span class="nav-text">计算步骤</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8E-simhash-%E7%9A%84%E6%AF%94%E8%BE%83"><span class="nav-number">6.</span> <span class="nav-text">与 simHash 的比较</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#reference"><span class="nav-number">8.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">66</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">39</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '166e7575bd175b6163d144b16260cd57',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
