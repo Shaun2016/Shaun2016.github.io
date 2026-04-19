@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="初步学习体验 LangGraph">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LangGraph 初体验">
+<meta property="og:url" content="http://shaun2016.github.io/2026/03/30/llm/langgraph/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="初步学习体验 LangGraph">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260418004451694.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260418010519592.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260420004314689.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260418012037477.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260419214019983.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260419152736983.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260419210814567.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260419212500053.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/llm/image-20260419212800860.png">
+<meta property="article:published_time" content="2026-03-30T12:20:17.592Z">
+<meta property="article:modified_time" content="2026-04-19T16:46:02.338Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="llm">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/llm/image-20260418004451694.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2026/03/30/llm/langgraph/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>LangGraph 初体验 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2026/03/30/llm/langgraph/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          LangGraph 初体验
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2026-03-30 20:20:17" itemprop="dateCreated datePublished" datetime="2026-03-30T20:20:17+08:00">2026-03-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2026-04-20 00:46:02" itemprop="dateModified" datetime="2026-04-20T00:46:02+08:00">2026-04-20</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>初步学习体验 LangGraph</p>
+</blockquote>
+<span id="more"></span>
+<p>先了解下 LangGraph 在 AI 智能体生态中的定位</p>
+<p>构建大模型应用/AI智能体主要由如下几种方式：</p>
+<ol type="1">
+<li>使用低代码平台，如 Dify</li>
+<li>使用智能体框架手撕，如 LangChain, SpringAI</li>
+</ol>
+<table>
+<colgroup>
+<col style="width: 15%">
+<col style="width: 20%">
+<col style="width: 39%">
+<col style="width: 24%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>类别</th>
+<th>特点</th>
+<th>代表产品</th>
+<th>目标群体</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>低代码可视化平台</td>
+<td>通过 UI 拖拽编排工作流</td>
+<td>Dify, Coze, n8n</td>
+<td>开发者，产品经理，企业团队</td>
+</tr>
+<tr class="even">
+<td>通用的 Agent 软件</td>
+<td>直接使用通用能力</td>
+<td>OpenClaw, Claude Code</td>
+<td>-</td>
+</tr>
+<tr class="odd">
+<td>开发框架</td>
+<td>手撕代码，定制化开发</td>
+<td>LangChain, LangGraph, DeepAgents, Spring AI</td>
+<td>AI 应用开发者</td>
+</tr>
+</tbody>
+</table>
+<p>之前已介绍过 LangChain，本文只介绍 LangGraph</p>
+<h3 id="产生背景">产生背景</h3>
+<blockquote>
+<p>已经有 langchain，为什么要有 langGraph？</p>
+</blockquote>
+<p>先看下 LangChain 解决了哪些问题：</p>
+<ol type="1">
+<li>封装主流大模型，方便调用</li>
+<li>Prompt 工程化</li>
+<li>工具调用</li>
+<li>上下文管理</li>
+<li>封装 RAG（检索增强生成）</li>
+</ol>
+<p>LangChain
+让调用大模型像搭积木一样，将不同组件连起来，随着功能的复杂，Langchain
+出现了一些问题：</p>
+<ol type="1">
+<li>无法处理复杂流程：LangChain
+适合线性流程，对于分支、循环、状态判断，开发者只好自己处理</li>
+<li>流程不可控：下一步使用哪个工具，完全交给 LLM，LLM
+幻觉很可能导致死循环，执行路径不可复现</li>
+<li>任务无法中断：无法保存/恢复任务的中间状态</li>
+<li>无法观测执行路径，调试困难</li>
+</ol>
+<p>比如用户想购买某款产品，需要我们咨询用户的需求和偏好，推荐几款热门产品</p>
+<p>这显示无法用线性方案实现，因为用户不会按照预想的流程配合我们</p>
+<p><img src="/images/llm/image-20260418004451694.png"></p>
+<p>而是一个循环引导的过程</p>
+<p><img src="/images/llm/image-20260418010519592.png"></p>
+<p>再比如我们有很多工具，有些工具之间存在固定的依赖关系，如果把所有工具一股脑丢给
+llm，完全由 llm
+决定如何组织，得到的结果非常不确定；如果把工具分类成组，每个组由一个 llm
+管理，形成若干 子Agent，再将子Agent 连起来，会让工具执行更准确可控</p>
+<p>LangGraph 正是为解决上述问题</p>
+<h3 id="核心概念">核心概念</h3>
+<p><strong>图（Graph）</strong></p>
+<p>LangGraph 将程序定义为图，图由节点（Nodes）和边（Edges）组成</p>
+<ul>
+<li>节点（Nodes）：代表一个执行步骤</li>
+<li>边（Edges）：定义节点之间的转换路径，边可以是有条件的</li>
+</ul>
+<p><strong>状态（State）</strong></p>
+<p>状态是图在执行过程中的共享数据结果（Context 上下文）</p>
+<ul>
+<li>每个节点执行完毕，都会更新状态</li>
+<li>所有节点都能访问最新状态</li>
+</ul>
+<p><strong>消息 (Message)</strong></p>
+<p>消息用来封装不同角色的输入与输出，封装图中传输的数据，分为</p>
+<ul>
+<li>SystemMessage 系统设定 Prompt</li>
+<li>HumanMessage 用户输入的消息</li>
+<li>AIMessage 模型回复的消息</li>
+<li>ToolMessage 工具调用返回的消息</li>
+</ul>
+<p>下面写一个 demo 体验下 langGraph 如何构建 workflow 与 Agent</p>
+<blockquote>
+<p>Workflow 与 Agent 的区别：</p>
+<ul>
+<li>Agent：由 llm 决定如何使用工具来完成任务</li>
+<li>workflow：一系列明确的步骤自动化执行工具，Agent 可以作为 workflow
+中的一个组件</li>
+</ul>
+</blockquote>
+<h3 id="workflow-demo">Workflow Demo</h3>
+<blockquote>
+<p>场景：安排行程的小助理，根据我的要求，推荐出行方案，根据我的选择下单</p>
+<p>流程：用户输入，如果用户输入存在时间、起点、终点，返回推荐方案，如果缺少某个信息，引导用户输入，直到输入完整再返回推荐</p>
+</blockquote>
+<h4 id="项目初始化">项目初始化</h4>
+<p>https://docs.langchain.com/oss/python/langgraph/local-server</p>
+<h4 id="代码">代码</h4>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> langchain.chat_models <span class="keyword">import</span> init_chat_model</span><br><span class="line"><span class="keyword">from</span> typing_extensions <span class="keyword">import</span> TypedDict</span><br><span class="line"><span class="keyword">from</span> typing <span class="keyword">import</span> <span class="type">Optional</span>, <span class="type">List</span></span><br><span class="line"><span class="keyword">from</span> langgraph.graph <span class="keyword">import</span> StateGraph, START, END</span><br><span class="line"><span class="keyword">from</span> langgraph.types <span class="keyword">import</span> interrupt</span><br><span class="line"><span class="keyword">import</span> json</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">llm = init_chat_model(</span><br><span class="line">        <span class="string">&quot;deepseek-chat&quot;</span>, </span><br><span class="line">        model_provider=<span class="string">&quot;deepseek&quot;</span>, </span><br><span class="line">        streaming=<span class="literal">True</span>, </span><br><span class="line">        temperature=<span class="number">0.7</span></span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">TravelState</span>(<span class="title class_ inherited__">TypedDict</span>):</span><br><span class="line">    messages: <span class="built_in">str</span></span><br><span class="line">    origin: <span class="type">Optional</span>[<span class="built_in">str</span>]</span><br><span class="line">    destination: <span class="type">Optional</span>[<span class="built_in">str</span>]</span><br><span class="line">    time: <span class="type">Optional</span>[<span class="built_in">str</span>]</span><br><span class="line">    choice: <span class="type">Optional</span>[<span class="built_in">int</span>]</span><br><span class="line">    plans: <span class="type">Optional</span>[<span class="type">List</span>[<span class="built_in">str</span>]]</span><br><span class="line">    choice: <span class="type">Optional</span>[<span class="built_in">int</span>]</span><br><span class="line">    selected_plan: <span class="type">Optional</span>[<span class="built_in">str</span>]</span><br><span class="line">    order: <span class="type">Optional</span>[<span class="built_in">str</span>]</span><br><span class="line">    missing: <span class="type">Optional</span>[<span class="type">List</span>[<span class="built_in">str</span>]]</span><br><span class="line">    </span><br><span class="line"><span class="keyword">def</span> <span class="title function_">parse_query</span>(<span class="params">state: TravelState</span>):</span><br><span class="line">    text = state[<span class="string">&quot;messages&quot;</span>]</span><br><span class="line">    <span class="built_in">print</span>(text)</span><br><span class="line">    </span><br><span class="line">    prompt = <span class="string">f&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">      你是一个信息抽取系统。</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">      任务：从用户输入中提取出行信息：</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">      字段定义：</span></span><br><span class="line"><span class="string">      - origin：出发地（城市名）</span></span><br><span class="line"><span class="string">      - destination：目的地（城市名）</span></span><br><span class="line"><span class="string">      - time：时间（如：今天、明天、后天、具体日期）</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">      规则：</span></span><br><span class="line"><span class="string">      1. 只要用户“可能表达了”，就要提取（不要过于保守）</span></span><br><span class="line"><span class="string">      2. 可以做合理推断（如“去上海” → destination=上海）</span></span><br><span class="line"><span class="string">      3. 不要全部返回 null，除非真的完全没有信息</span></span><br><span class="line"><span class="string">      4. 只返回 JSON，不要解释</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">      用户输入：</span></span><br><span class="line"><span class="string">      <span class="subst">&#123;text&#125;</span></span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">      输出格式：</span></span><br><span class="line"><span class="string">      &#123;&#123;</span></span><br><span class="line"><span class="string">        &quot;origin&quot;: &quot;...&quot;,</span></span><br><span class="line"><span class="string">        &quot;destination&quot;: &quot;...&quot;,</span></span><br><span class="line"><span class="string">        &quot;time&quot;: &quot;...&quot;</span></span><br><span class="line"><span class="string">      &#125;&#125;</span></span><br><span class="line"><span class="string">      &quot;&quot;&quot;</span></span><br><span class="line">    </span><br><span class="line">    resp = llm.invoke(prompt)</span><br><span class="line">    <span class="built_in">print</span>(resp)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        data = json.loads(resp.content)</span><br><span class="line">    <span class="keyword">except</span>:</span><br><span class="line">        data = &#123;&#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># 和旧 state 合并</span></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        <span class="string">&quot;origin&quot;</span>: data.get(<span class="string">&quot;origin&quot;</span>) <span class="keyword">or</span> state.get(<span class="string">&quot;origin&quot;</span>),</span><br><span class="line">        <span class="string">&quot;destination&quot;</span>: data.get(<span class="string">&quot;destination&quot;</span>) <span class="keyword">or</span> state.get(<span class="string">&quot;destination&quot;</span>),</span><br><span class="line">        <span class="string">&quot;time&quot;</span>: data.get(<span class="string">&quot;time&quot;</span>) <span class="keyword">or</span> state.get(<span class="string">&quot;time&quot;</span>),</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">check_missing</span>(<span class="params">state: TravelState</span>):</span><br><span class="line">    missing = []</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> state.get(<span class="string">&#x27;origin&#x27;</span>):</span><br><span class="line">        missing.append(<span class="string">&#x27;出发地&#x27;</span>)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> state.get(<span class="string">&#x27;destination&#x27;</span>):</span><br><span class="line">        missing.append(<span class="string">&#x27;目的地&#x27;</span>)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> state.get(<span class="string">&#x27;time&#x27;</span>):</span><br><span class="line">        missing.append(<span class="string">&#x27;时间&#x27;</span>)</span><br><span class="line">    <span class="keyword">return</span> &#123;<span class="string">&#x27;missing&#x27;</span>: missing&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">ask_user</span>(<span class="params">state: TravelState</span>):</span><br><span class="line">    missing = state[<span class="string">&#x27;missing&#x27;</span>]</span><br><span class="line">    question = <span class="string">f&#x27;请补充以下信息:<span class="subst">&#123;<span class="string">&#x27;, &#x27;</span>.join(missing)&#125;</span>&#x27;</span></span><br><span class="line">    <span class="keyword">return</span> interrupt(question)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">route_after_check</span>(<span class="params">state: TravelState</span>):</span><br><span class="line">    <span class="keyword">if</span> state[<span class="string">&#x27;missing&#x27;</span>]:</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&#x27;ask&#x27;</span></span><br><span class="line">    <span class="keyword">return</span> <span class="string">&#x27;generate&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">generate_plans</span>(<span class="params">state: TravelState</span>):</span><br><span class="line">    plans = [</span><br><span class="line">        <span class="string">f&quot;<span class="subst">&#123;state[<span class="string">&#x27;origin&#x27;</span>]&#125;</span>→<span class="subst">&#123;state[<span class="string">&#x27;destination&#x27;</span>]&#125;</span> A101 3h 500元&quot;</span>,</span><br><span class="line">        <span class="string">f&quot;<span class="subst">&#123;state[<span class="string">&#x27;origin&#x27;</span>]&#125;</span>→<span class="subst">&#123;state[<span class="string">&#x27;destination&#x27;</span>]&#125;</span> B293 2h30min 600元&quot;</span>,</span><br><span class="line">        <span class="string">f&quot;<span class="subst">&#123;state[<span class="string">&#x27;origin&#x27;</span>]&#125;</span>→<span class="subst">&#123;state[<span class="string">&#x27;destination&#x27;</span>]&#125;</span> C987 3h20min 559元&quot;</span>,</span><br><span class="line">    ]</span><br><span class="line">    <span class="keyword">return</span> &#123;<span class="string">&#x27;plans&#x27;</span>: plans&#125;</span><br><span class="line">  </span><br><span class="line"><span class="comment"># 构建图</span></span><br><span class="line">builder = StateGraph(TravelState)</span><br><span class="line"></span><br><span class="line">builder.add_node(<span class="string">&quot;parse&quot;</span>, parse_query)</span><br><span class="line">builder.add_node(<span class="string">&quot;check&quot;</span>, check_missing)</span><br><span class="line">builder.add_node(<span class="string">&quot;ask&quot;</span>, ask_user)</span><br><span class="line">builder.add_node(<span class="string">&#x27;generate&#x27;</span>, generate_plans)</span><br><span class="line"></span><br><span class="line">builder.set_entry_point(<span class="string">&#x27;parse&#x27;</span>)</span><br><span class="line">builder.add_edge(<span class="string">&#x27;parse&#x27;</span>, <span class="string">&#x27;check&#x27;</span>)</span><br><span class="line">builder.add_conditional_edges(</span><br><span class="line">    <span class="string">&#x27;check&#x27;</span>,</span><br><span class="line">    route_after_check,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="string">&#x27;ask&#x27;</span>: <span class="string">&#x27;ask&#x27;</span>,</span><br><span class="line">        <span class="string">&quot;generate&quot;</span>: <span class="string">&#x27;generate&#x27;</span></span><br><span class="line">    &#125;</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">builder.add_edge(<span class="string">&#x27;ask&#x27;</span>, <span class="string">&#x27;parse&#x27;</span>)</span><br><span class="line"><span class="comment"># 部分代码逻辑重复未贴出</span></span><br><span class="line"></span><br><span class="line">agent = builder.<span class="built_in">compile</span>()</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> langchain_core.messages <span class="keyword">import</span> HumanMessage</span><br><span class="line">messages = [HumanMessage(content=<span class="string">&quot;请帮我安排行程&quot;</span>)]</span><br><span class="line">messages = agent.invoke(&#123;<span class="string">&quot;messages&quot;</span>: messages&#125;)</span><br></pre></td></tr></table></figure>
+<p>上面代码中，llm 用于解析用户输入的自然语言，提取关键数据，其他 node
+用关键数据做业务逻辑，edge 负责控制 node 的执行</p>
+<h4 id="langsmith-调试">LangSmith 调试</h4>
+<blockquote>
+<p>LangSmith 是由 LangChain
+推出的用于构建、调试、评估和监控大语言模型的平台</p>
+<p><strong>调试</strong>：可以记录每一步做了什么，输入输出</p>
+<p><strong>追踪</strong>：可以将复杂调用流程可视化</p>
+<p><strong>评估</strong>：对比不同 prompt、模型，自动打分</p>
+<p><strong>监控</strong>：统计调用成功率，延迟，token使用量，异常等</p>
+</blockquote>
+<p>调试过程：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 输入命令，会自动打开 LangSmith 网页</span></span><br><span class="line">langgraph dev</span><br></pre></td></tr></table></figure>
+<p><img src="/images/llm/image-20260420004314689.png" style="zoom: 25%;"></p>
+<p>调试过程：</p>
+<table>
+<colgroup>
+<col style="width: 37%">
+<col style="width: 62%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>输入</th>
+<th>调试</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>{"messages": "请帮我安排明天的行程"}</td>
+<td><img src="/images/llm/image-20260418012037477.png" style="zoom: 33%;"></td>
+</tr>
+<tr class="even">
+<td>{"messages": "从上海到北京"}</td>
+<td><img src="/images/llm/image-20260419214019983.png" style="zoom:50%;"></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>上面的流程显得比较麻烦，因为每个表单填充都需要实现 input -&gt; parse
+-&gt; check -&gt; ask -&gt; parse ... 这个固定过程，可以用 Slot
+Filling（槽位填充）简单实现，这里只是为了体现 langGraph 的 node 和
+edge</p>
+</blockquote>
+<h3 id="agent-demo">Agent demo</h3>
+<p><img src="/images/llm/image-20260419152736983.png" style="zoom:50%;"></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Step 1: Define tools and model</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> langchain.tools <span class="keyword">import</span> tool</span><br><span class="line"><span class="keyword">from</span> langchain.chat_models <span class="keyword">import</span> init_chat_model</span><br><span class="line"><span class="keyword">from</span> langchain_core.messages <span class="keyword">import</span> HumanMessage, ToolMessage, AnyMessage, SystemMessage</span><br><span class="line"><span class="keyword">from</span> typing_extensions <span class="keyword">import</span> TypedDict, Annotated</span><br><span class="line"><span class="keyword">import</span> operator</span><br><span class="line"><span class="keyword">from</span> typing <span class="keyword">import</span> <span class="type">Literal</span></span><br><span class="line"><span class="keyword">from</span> langgraph.graph <span class="keyword">import</span> StateGraph, START, END</span><br><span class="line"></span><br><span class="line">model = init_chat_model(</span><br><span class="line">        <span class="string">&quot;deepseek-chat&quot;</span>, </span><br><span class="line">        model_provider=<span class="string">&quot;deepseek&quot;</span>, </span><br><span class="line">        streaming=<span class="literal">True</span>, </span><br><span class="line">        temperature=<span class="number">0.7</span></span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># Define tools</span></span><br><span class="line"><span class="meta">@tool</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">multiply</span>(<span class="params">a: <span class="built_in">int</span>, b: <span class="built_in">int</span></span>) -&gt; <span class="built_in">int</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Multiply `a` and `b`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Args:</span></span><br><span class="line"><span class="string">        a: First int</span></span><br><span class="line"><span class="string">        b: Second int</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line">    <span class="keyword">return</span> a * b</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="meta">@tool</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">add</span>(<span class="params">a: <span class="built_in">int</span>, b: <span class="built_in">int</span></span>) -&gt; <span class="built_in">int</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Adds `a` and `b`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Args:</span></span><br><span class="line"><span class="string">        a: First int</span></span><br><span class="line"><span class="string">        b: Second int</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line">    <span class="keyword">return</span> a + b</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="meta">@tool</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">divide</span>(<span class="params">a: <span class="built_in">int</span>, b: <span class="built_in">int</span></span>) -&gt; <span class="built_in">float</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Divide `a` and `b`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Args:</span></span><br><span class="line"><span class="string">        a: First int</span></span><br><span class="line"><span class="string">        b: Second int</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line">    <span class="keyword">return</span> a / b</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># Augment the LLM with tools</span></span><br><span class="line">tools = [add, multiply, divide]</span><br><span class="line">tools_by_name = &#123;tool.name: tool <span class="keyword">for</span> tool <span class="keyword">in</span> tools&#125;</span><br><span class="line">model_with_tools = model.bind_tools(tools)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 2: Define state</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">MessagesState</span>(<span class="title class_ inherited__">TypedDict</span>):</span><br><span class="line">    messages: Annotated[<span class="built_in">list</span>[AnyMessage], operator.add]</span><br><span class="line">    llm_calls: <span class="built_in">int</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 3: Define model node</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">llm_call</span>(<span class="params">state: <span class="built_in">dict</span></span>):</span><br><span class="line">    <span class="string">&quot;&quot;&quot;LLM decides whether to call a tool or not&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        <span class="string">&quot;messages&quot;</span>: [</span><br><span class="line">            model_with_tools.invoke(</span><br><span class="line">                [</span><br><span class="line">                    SystemMessage(</span><br><span class="line">                        content=<span class="string">&quot;You are a helpful assistant tasked with performing arithmetic on a set of inputs.&quot;</span></span><br><span class="line">                    )</span><br><span class="line">                ]</span><br><span class="line">                + state[<span class="string">&quot;messages&quot;</span>]</span><br><span class="line">            )</span><br><span class="line">        ],</span><br><span class="line">        <span class="string">&quot;llm_calls&quot;</span>: state.get(<span class="string">&#x27;llm_calls&#x27;</span>, <span class="number">0</span>) + <span class="number">1</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 4: Define tool node</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">tool_node</span>(<span class="params">state: <span class="built_in">dict</span></span>):</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Performs the tool call&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    result = []</span><br><span class="line">    <span class="keyword">for</span> tool_call <span class="keyword">in</span> state[<span class="string">&quot;messages&quot;</span>][-<span class="number">1</span>].tool_calls:</span><br><span class="line">        tool = tools_by_name[tool_call[<span class="string">&quot;name&quot;</span>]]</span><br><span class="line">        observation = tool.invoke(tool_call[<span class="string">&quot;args&quot;</span>])</span><br><span class="line">        result.append(ToolMessage(content=observation, tool_call_id=tool_call[<span class="string">&quot;id&quot;</span>]))</span><br><span class="line">    <span class="keyword">return</span> &#123;<span class="string">&quot;messages&quot;</span>: result&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 5: Define logic to determine whether to end</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># Conditional edge function to route to the tool node or end based upon whether the LLM made a tool call</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">should_continue</span>(<span class="params">state: MessagesState</span>) -&gt; <span class="type">Literal</span>[<span class="string">&quot;tool_node&quot;</span>, END]:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Decide if we should continue the loop or stop based upon whether the LLM made a tool call&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    messages = state[<span class="string">&quot;messages&quot;</span>]</span><br><span class="line">    last_message = messages[-<span class="number">1</span>]</span><br><span class="line"></span><br><span class="line">    <span class="comment"># If the LLM makes a tool call, then perform an action</span></span><br><span class="line">    <span class="keyword">if</span> last_message.tool_calls:</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;tool_node&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># Otherwise, we stop (reply to the user)</span></span><br><span class="line">    <span class="keyword">return</span> END</span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 6: Build agent</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Build workflow</span></span><br><span class="line">agent_builder = StateGraph(MessagesState)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Add nodes</span></span><br><span class="line">agent_builder.add_node(<span class="string">&quot;model&quot;</span>, llm_call)</span><br><span class="line">agent_builder.add_node(<span class="string">&quot;tools&quot;</span>, tool_node)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Add edges to connect nodes</span></span><br><span class="line">agent_builder.add_edge(START, <span class="string">&quot;tools&quot;</span>)</span><br><span class="line">agent_builder.add_conditional_edges(</span><br><span class="line">    <span class="string">&quot;llm_call&quot;</span>,</span><br><span class="line">    should_continue,</span><br><span class="line">    [<span class="string">&quot;tool_node&quot;</span>, END]</span><br><span class="line">)</span><br><span class="line">agent_builder.add_edge(<span class="string">&quot;tools&quot;</span>, <span class="string">&quot;model&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Compile the agent</span></span><br><span class="line">agent = agent_builder.<span class="built_in">compile</span>()</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> IPython.display <span class="keyword">import</span> Image, display</span><br><span class="line"><span class="comment"># Show the agent</span></span><br><span class="line">display(Image(agent.get_graph(xray=<span class="literal">True</span>).draw_mermaid_png()))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Invoke</span></span><br><span class="line">messages = [HumanMessage(content=<span class="string">&quot;Add 3 and 4.&quot;</span>)]</span><br><span class="line">messages = agent.invoke(&#123;<span class="string">&quot;messages&quot;</span>: messages&#125;)</span><br><span class="line"><span class="keyword">for</span> m <span class="keyword">in</span> messages[<span class="string">&quot;messages&quot;</span>]:</span><br><span class="line">    m.pretty_print()</span><br></pre></td></tr></table></figure>
+<p>调试效果</p>
+<p><img src="/images/llm/image-20260419210814567.png"></p>
+<table>
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>执行流程</th>
+<th>耗时与token统计</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="/images/llm/image-20260419212500053.png" style="zoom: 67%;"></td>
+<td><img src="/images/llm/image-20260419212800860.png" style="zoom:67%;"></td>
+</tr>
+</tbody>
+</table>
+<p>上面的代码手动实现了 Agent ReAct 模式，只为说明 langGraph
+的运行模式，langChain 已经为我们封装好了创建 Agent 方法</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> langchain.agents <span class="keyword">import</span> create_agent</span><br><span class="line">agent = create_agent(</span><br><span class="line">    model=model,</span><br><span class="line">    tools=tools,</span><br><span class="line">    system_prompt=<span class="string">&quot;You are a helpful assistant.&quot;</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+<h3 id="小结">小结</h3>
+<p>最后总结下 LangGraph 的</p>
+<p>优点：</p>
+<ol type="1">
+<li>流程可控，支持复杂流程</li>
+<li>显式状态管理：可中断，可持久化</li>
+<li>易调试</li>
+</ol>
+<p>使用场景：</p>
+<ol type="1">
+<li>复杂的多分支流程</li>
+<li>多 Agent 协作</li>
+<li>长作业，中间需要人工介入</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/llm/" rel="tag"># llm</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/10/26/llm/simHash/" rel="prev" title="余弦相似度估计算法 simHash">
+      <i class="fa fa-chevron-left"></i> 余弦相似度估计算法 simHash
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%A7%E7%94%9F%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">产生背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-number">2.</span> <span class="nav-text">核心概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#workflow-demo"><span class="nav-number">3.</span> <span class="nav-text">Workflow Demo</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%A1%B9%E7%9B%AE%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">3.1.</span> <span class="nav-text">项目初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81"><span class="nav-number">3.2.</span> <span class="nav-text">代码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#langsmith-%E8%B0%83%E8%AF%95"><span class="nav-number">3.3.</span> <span class="nav-text">LangSmith 调试</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#agent-demo"><span class="nav-number">4.</span> <span class="nav-text">Agent demo</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B0%8F%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">小结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">66</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">38</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2026</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : 'd0a4b63903869d54d0a9b180631e264a',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
