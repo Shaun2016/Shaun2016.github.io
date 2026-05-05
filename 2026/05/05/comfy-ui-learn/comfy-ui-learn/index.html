@@ -21,19 +21,19 @@
     var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
   </script>
 
-  <meta name="description" content="学习 Comfy UI 的初衷，是想制作一二布布视频作为副业，之前学习了在剪映用表情包制作短视频，由于表情包素材有限，很难做出丰富内容，再加上 AI 短视频兴起，手剪效果效率都远远落后了 学习的最终目标，是输入一段文本，自动生成一二布布视频  本文为第一篇，学习使用 comfy-ui 完成 文生图 与 图生图 任务">
+  <meta name="description" content="学习 ComfyUI 的初衷，是想制作一二布布视频作为副业，之前学习了在剪映用表情包制作短视频，由于表情包素材有限，很难做出丰富内容，再加上 AI 短视频兴起，手剪效果效率都远远落后了 学习的最终目标，是输入一段文本，自动生成一二布布视频  本文为第一篇，学习使用 comfy-ui 完成 文生图 与 图生图 任务">
 <meta property="og:type" content="article">
-<meta property="og:title" content="学习 Comfy UI 第一篇，完成文生图、图生图任务">
+<meta property="og:title" content="学习 ComfyUI 第一篇，完成文生图、图生图任务">
 <meta property="og:url" content="http://shaun2016.github.io/2026/05/05/comfy-ui-learn/comfy-ui-learn/index.html">
 <meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
-<meta property="og:description" content="学习 Comfy UI 的初衷，是想制作一二布布视频作为副业，之前学习了在剪映用表情包制作短视频，由于表情包素材有限，很难做出丰富内容，再加上 AI 短视频兴起，手剪效果效率都远远落后了 学习的最终目标，是输入一段文本，自动生成一二布布视频  本文为第一篇，学习使用 comfy-ui 完成 文生图 与 图生图 任务">
+<meta property="og:description" content="学习 ComfyUI 的初衷，是想制作一二布布视频作为副业，之前学习了在剪映用表情包制作短视频，由于表情包素材有限，很难做出丰富内容，再加上 AI 短视频兴起，手剪效果效率都远远落后了 学习的最终目标，是输入一段文本，自动生成一二布布视频  本文为第一篇，学习使用 comfy-ui 完成 文生图 与 图生图 任务">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260505124437665.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260505130113939.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260505131744542.png">
 <meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260505150140951.png">
 <meta property="article:published_time" content="2026-05-05T07:18:00.000Z">
-<meta property="article:modified_time" content="2026-05-05T07:19:40.010Z">
+<meta property="article:modified_time" content="2026-05-05T16:38:38.872Z">
 <meta property="article:author" content="Jiaming Zhang">
 <meta property="article:tag" content="AI">
 <meta name="twitter:card" content="summary">
@@ -52,7 +52,7 @@
   };
 </script>
 
-  <title>学习 Comfy UI 第一篇，完成文生图、图生图任务 | Jiaming Zhang's Blog</title>
+  <title>学习 ComfyUI 第一篇，完成文生图、图生图任务 | Jiaming Zhang's Blog</title>
   
 
 
@@ -213,7 +213,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          学习 Comfy UI 第一篇，完成文生图、图生图任务
+          学习 ComfyUI 第一篇，完成文生图、图生图任务
         </h1>
 
         <div class="post-meta">
@@ -222,17 +222,23 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2026-05-05 15:18:00 / 修改时间：15:19:40" itemprop="dateCreated datePublished" datetime="2026-05-05T15:18:00+08:00">2026-05-05</time>
+              <time title="创建时间：2026-05-05 15:18:00" itemprop="dateCreated datePublished" datetime="2026-05-05T15:18:00+08:00">2026-05-05</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2026-05-06 00:38:38" itemprop="dateModified" datetime="2026-05-06T00:38:38+08:00">2026-05-06</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/AI/" itemprop="url" rel="index"><span itemprop="name">AI</span></a>
+                  <a href="/categories/ComfyUI/" itemprop="url" rel="index"><span itemprop="name">ComfyUI</span></a>
                 </span>
             </span>
 
@@ -248,7 +254,7 @@
 
       
         <blockquote>
-<p>学习 Comfy UI
+<p>学习 ComfyUI
 的初衷，是想制作一二布布视频作为副业，之前学习了在剪映用表情包制作短视频，由于表情包素材有限，很难做出丰富内容，再加上
 AI 短视频兴起，手剪效果效率都远远落后了</p>
 <p>学习的最终目标，是输入一段文本，自动生成一二布布视频</p>
@@ -256,6 +262,15 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
 <p>本文为第一篇，学习使用 comfy-ui 完成 <strong>文生图</strong> 与
 <strong>图生图</strong> 任务</p>
 <span id="more"></span>
+<h2 id="技术调研">技术调研</h2>
+<p>制作 AI 视频前，先了解下市面上制作 AI 视频的工具</p>
+<p>第一类：视频生成大模型服务，如 Sora, Runway, 可灵AI
+等，在视频生成网站输入 prompt 便可生成视频，难度低，但费用较高</p>
+<p>第二类：本地生成视频的工具，如 ComfyUI, Automatic111,
+Forge，需要在本地先安装这类客户端，下载模型文件，在本地生成视频，也可使用云端算力；这种方案难度大，费用较低（租远程显卡的费用），使用本地显卡则无费用</p>
+<p>考虑到费用问题，选择第二类方案，对比了第二类的几款工具，ComfyUI
+的可控性最强、视频生成效果、性能更好，但学习成本高；比较后决定先从
+ComfyUI 学起</p>
 <h2 id="准备工作">准备工作</h2>
 <blockquote>
 <p>参考：https://docs.comfy.org/get_started/first_generation</p>
@@ -265,6 +280,9 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
 <li>下载模型（本文用 SD1.5）：复制链接下载模型文件，保存到 checkpoints
 目录中（Help-&gt;Open Folder -&gt; 打开模型文件夹）</li>
 </ol>
+<blockquote>
+<p>下面按照官方教程依此学习</p>
+</blockquote>
 <h2 id="文生图">文生图</h2>
 <h3 id="运行示例">运行示例</h3>
 <ol type="1">
@@ -301,15 +319,19 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
 </ol></li>
 <li>Empty Latent Image Node：定义生成图片的尺寸</li>
 <li>CLIP Text Encoder Node：将提示词转换为模型能够理解的向量</li>
-<li>KSampler Node：去噪，在 latent space 输出一个图像</li>
+<li>KSampler Node：降噪，在 latent space 输出一个图像</li>
 <li>VAE Decode Node：将 latent space 图像转为像素图像</li>
 <li>Save Image Node：保存图片到 output 文件夹</li>
 </ol>
 <h2 id="图生图">图生图</h2>
 <p>将上面的 Empty Latent Image Node 改为【 加载图像 和 VAE
 编码的节点】</p>
+<p>降噪值（0-1) 越小，生成图像与参考图像之间差异越小</p>
 <p><img src="/images/comfyui/image-20260505150140951.png"></p>
 <p>只能说有点抽象，感觉我是来搞笑的</p>
+<h2 id="reference">Reference</h2>
+<p>https://docs.comfy.org/tutorials/basic/text-to-image</p>
+<p>https://docs.comfy.org/tutorials/basic/image-to-image</p>
 
     </div>
 
@@ -331,7 +353,10 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
     <a href="/2026/03/30/llm/langgraph/" rel="prev" title="LangGraph 初体验">
       <i class="fa fa-chevron-left"></i> LangGraph 初体验
     </a></div>
-      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2026/05/06/comfy-ui-learn/comfy-ui-learn-2/" rel="next" title="学习 ComfyUI 第二篇，修复与补绘">
+      学习 ComfyUI 第二篇，修复与补绘 <i class="fa fa-chevron-right"></i>
+    </a></div>
     </div>
       </footer>
     
@@ -391,7 +416,7 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-number">1.</span> <span class="nav-text">准备工作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%96%87%E7%94%9F%E5%9B%BE"><span class="nav-number">2.</span> <span class="nav-text">文生图</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%90%E8%A1%8C%E7%A4%BA%E4%BE%8B"><span class="nav-number">2.1.</span> <span class="nav-text">运行示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E6%88%90%E8%87%AA%E5%B7%B1%E7%9A%84%E5%9B%BE%E7%89%87"><span class="nav-number">2.2.</span> <span class="nav-text">生成自己的图片</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%87%E7%94%9F%E5%9B%BE%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%8A%82%E7%82%B9"><span class="nav-number">2.3.</span> <span class="nav-text">文生图工作流节点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%BE%E7%94%9F%E5%9B%BE"><span class="nav-number">3.</span> <span class="nav-text">图生图</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E8%B0%83%E7%A0%94"><span class="nav-number">1.</span> <span class="nav-text">技术调研</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-number">2.</span> <span class="nav-text">准备工作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%96%87%E7%94%9F%E5%9B%BE"><span class="nav-number">3.</span> <span class="nav-text">文生图</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%90%E8%A1%8C%E7%A4%BA%E4%BE%8B"><span class="nav-number">3.1.</span> <span class="nav-text">运行示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E6%88%90%E8%87%AA%E5%B7%B1%E7%9A%84%E5%9B%BE%E7%89%87"><span class="nav-number">3.2.</span> <span class="nav-text">生成自己的图片</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%87%E7%94%9F%E5%9B%BE%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%8A%82%E7%82%B9"><span class="nav-number">3.3.</span> <span class="nav-text">文生图工作流节点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%BE%E7%94%9F%E5%9B%BE"><span class="nav-number">4.</span> <span class="nav-text">图生图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-number">5.</span> <span class="nav-text">Reference</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -405,7 +430,7 @@ AI 短视频兴起，手剪效果效率都远远落后了</p>
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">67</span>
+          <span class="site-state-item-count">68</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
