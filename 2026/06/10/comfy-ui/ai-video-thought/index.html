@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shaun2016.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":null,"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="整体思路  编写剧本 生成分镜图 生成视频 剪辑配音  其中，编写剧本用 chatgpt，分镜图&#x2F;视频用 running hub，本地电脑无要求">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AI 视频制作思路分享">
+<meta property="og:url" content="http://shaun2016.github.io/2026/06/10/comfy-ui/ai-video-thought/index.html">
+<meta property="og:site_name" content="Jiaming Zhang&#39;s Blog">
+<meta property="og:description" content="整体思路  编写剧本 生成分镜图 生成视频 剪辑配音  其中，编写剧本用 chatgpt，分镜图&#x2F;视频用 running hub，本地电脑无要求">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260610013116581.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/comfyui/ComfyUI_00001_bmzdi_1781003937.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260610014727238.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260610020802720.png">
+<meta property="og:image" content="http://shaun2016.github.io/images/comfyui/image-20260610020741985.png">
+<meta property="article:published_time" content="2026-06-09T17:51:27.000Z">
+<meta property="article:modified_time" content="2026-06-09T18:17:10.032Z">
+<meta property="article:author" content="Jiaming Zhang">
+<meta property="article:tag" content="AI">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://shaun2016.github.io/images/comfyui/image-20260610013116581.png">
+
+<link rel="canonical" href="http://shaun2016.github.io/2026/06/10/comfy-ui/ai-video-thought/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>AI 视频制作思路分享 | Jiaming Zhang's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Jiaming Zhang's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://shaun2016.github.io/2026/06/10/comfy-ui/ai-video-thought/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Jiaming Zhang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Jiaming Zhang's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AI 视频制作思路分享
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2026-06-10 01:51:27 / 修改时间：02:17:10" itemprop="dateCreated datePublished" datetime="2026-06-10T01:51:27+08:00">2026-06-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ComfyUI/" itemprop="url" rel="index"><span itemprop="name">ComfyUI</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="整体思路">整体思路</h2>
+<ol type="1">
+<li>编写剧本</li>
+<li>生成分镜图</li>
+<li>生成视频</li>
+<li>剪辑配音</li>
+</ol>
+<p>其中，编写剧本用 chatgpt，分镜图/视频用 running
+hub，本地电脑无要求</p>
+<span id="more"></span>
+<p>介绍：</p>
+<ul>
+<li>Running Hub 是一个 ComfyUI 的AI平台，提供了很多直接可用的 ComfyUI
+工作流，视频制作者只需专注于创作，免去下载模型、环境配置、搭建工作流等复杂工作</li>
+<li>ComfyUI 是一个开源的图片、视频工作流框架</li>
+</ul>
+<p>可通过下面链接注册：</p>
+<blockquote>
+<p>宝子们，我发现一个AI图像视频宝藏产品 RunningHub！全球ComfyUI
+开发者每天在此发布数百个超有趣超有用的AI应用，娱乐工作一网打尽。打开链接：https://www.runninghub.cn/?inviteCode=0v8k3rwm
+注册领500RH币可以免费生成好多图片视频哦！</p>
+</blockquote>
+<h2 id="编写剧本">编写剧本</h2>
+<p>在 chatgpt 输入以下内容：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">角色1：一二，小女熊，性格调皮可爱，胖乎乎，声音甜美</span><br><span class="line">角色2：布布，小男熊，性格老实憨厚，胖乎乎，声音憨憨的</span><br><span class="line">他们是情侣关系</span><br><span class="line"></span><br><span class="line">故事情节：一二和布布在小屋里堆积木，越堆越高，哗一下子倒了，两小只开心的躺下</span><br><span class="line"></span><br><span class="line">请参考下面模板改写上述情节：</span><br><span class="line"></span><br><span class="line">核心角色为创意视觉化脚本助手，其目的是根据剧本和参考图，生成GPT-Image2专用的9宫格分镜，关键词描述需极致精简，无字幕，中文，总字数不得超过500字。</span><br><span class="line"></span><br><span class="line">参考以下格式模板（仅参考格式）：</span><br><span class="line"></span><br><span class="line">生成九宫格分镜图，电影风格。</span><br><span class="line"></span><br><span class="line"><span class="bullet">1.</span> 晨光，卧室，棕发女主侧卧，橘色长毛猫蹭脸，温馨。</span><br><span class="line"><span class="bullet">2.</span> 厨房，女主倒猫粮，橘猫抬头期待，特写。</span><br><span class="line"><span class="bullet">3.</span> 书桌，女主专注电脑，橘猫趴在键盘边，侧拍。</span><br><span class="line"><span class="bullet">4.</span> 客厅，女主挥动逗猫棒，橘猫跃起捕捉，动态。</span><br><span class="line"><span class="bullet">5.</span> 阳台阳光，女主看书，橘猫在腿上打盹，静谧。</span><br><span class="line"><span class="bullet">6.</span> 镜前，女主穿上牛仔外套，橘猫蹲在脚边，全身。</span><br><span class="line"><span class="bullet">7.</span> 窗边黄昏，女主抱起橘猫看晚霞，剪影氛围。</span><br><span class="line"><span class="bullet">8.</span> 沙发，女主吃零食，橘猫眼神渴望，近景。</span><br><span class="line"><span class="bullet">9.</span> 卧室关灯，女主与橘猫相拥入眠，微光暖色。</span><br></pre></td></tr></table></figure>
+<p>Chatgpt 输出：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">生成九宫格分镜图，电影风格。</span><br><span class="line"><span class="bullet">1.</span> 晨光，客厅地板，一二和布布坐在积木堆前挑选积木，阳光洒落，温馨开场。</span><br><span class="line"><span class="bullet">2.</span> 地毯上，一二认真搭建积木底座，布布递来积木块，两小只默契合作，近景。</span><br><span class="line"><span class="bullet">3.</span> 客厅中央，积木塔逐渐变高，一二踮脚放置积木，布布仰头观看，侧拍。</span><br><span class="line"><span class="bullet">4.</span> 积木塔已经超过两小只身高，一二小心调整顶部，布布兴奋拍手，动态感。</span><br><span class="line"><span class="bullet">5.</span> 地板特写，高高的积木塔摇摇晃晃，一二和布布屏住呼吸观察，紧张有趣。</span><br><span class="line"><span class="bullet">6.</span> 客厅中央，积木塔突然倾斜，两小只惊讶睁大眼睛，积木开始散落，全身镜头。</span><br><span class="line"><span class="bullet">7.</span> 积木塔轰然倒塌，五颜六色的积木洒满地板，一二和布布被逗得哈哈大笑，欢乐氛围</span><br><span class="line"><span class="bullet">8.</span> 地板上，一二和布布坐在积木堆中开心讨论，比划着下次要搭得更高，温暖近景。</span><br><span class="line"><span class="bullet">9.</span> 午后阳光下，一二和布布并排躺在铺满积木的地板上，惬意的闭上眼睛，积木散落四周，轻松治愈收尾。</span><br></pre></td></tr></table></figure>
+<h2 id="分镜图">分镜图</h2>
+<p>https://www.runninghub.cn/workflow/2064398790777466882</p>
+<blockquote>
+<p>点击左上角【保存】，将工作流保存到自己的工作台</p>
+</blockquote>
+<p>输入角色图、剧本、提示词</p>
+<p><img src="/images/comfyui/image-20260610013116581.png" style="zoom:50%;"></p>
+<p>剧本：见编写剧本</p>
+<p>提示词：</p>
+<blockquote>
+<p>一二（图1）和布布（图2）在小屋里开心的玩积木。（电影风格）
+要与图片中角色形象完全一致
+注意：超萌Q版毛绒团子角色，毛茸茸的，圆脸，没有鼻子！只有一个小“ω”嘴，极简五官，贴图式表情，无口鼻区结构，无下巴线，无额外面部细节，no
+nose, single ω mouth only，无手指，不要有玩具的缝合线！不要序号数字</p>
+<p>不要：双嘴，多嘴，额外嘴巴，口鼻结构，手指，缝合线，序号数字！！！</p>
+</blockquote>
+<p>运行工作流：</p>
+<p><img src="/images/comfyui/ComfyUI_00001_bmzdi_1781003937.png" style="zoom:50%;"></p>
+<p>将 9宫格分成 9张单独图片：手动截取，或使用分镜图切分拆分工作流
+https://www.runninghub.cn/ai-detail/2043972086510657538</p>
+<h2 id="分镜视频">分镜视频</h2>
+<p>https://www.runninghub.cn/workflow/2064398588595236865</p>
+<blockquote>
+<p>同样保存到自己的工作台</p>
+</blockquote>
+<p>将上面的 9
+张图片放到下面节点，每张图片输入剧本分镜词，通过横向拉拽图片，设置每个分镜的时长</p>
+<p><img src="/images/comfyui/image-20260610014727238.png" style="zoom:50%;"></p>
+<p>运行工作流，得到视频</p>
+<p>成品链接：待上传</p>
+<h2 id="成本分析">成本分析</h2>
+<p>分镜：3R + 0.1元</p>
+<p>视频：78R</p>
+<p>1R = 0.004 元</p>
+<p>总计成本：0.424 元</p>
+<p><img src="/images/comfyui/image-20260610020802720.png"></p>
+<p><img src="/images/comfyui/image-20260610020741985.png"></p>
+<blockquote>
+<p>收费情况：</p>
+<ul>
+<li>调用付费模型 api，如极梦、seedence2.0 按照付费模型定价</li>
+<li>调用开源模型，只收取 R币，不用付费</li>
+</ul>
+<p>上面的分镜工作流调用了付费模型api，可能有只用开源模型的工作流，会更便宜</p>
+</blockquote>
+<h2 id="待解决问题">待解决问题</h2>
+<ol type="1">
+<li>无法说话，无法对口型</li>
+<li>无法自动为角色配音</li>
+<li>视频清晰度不够</li>
+</ol>
+<h2 id="学习资料">学习资料</h2>
+<p>https://space.bilibili.com/17919458/lists/6542969?type=season</p>
+<p>https://www.runninghub.cn/page-workflow</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AI/" rel="tag"># AI</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2026/05/13/llm/ai-pre-knowledge/" rel="prev" title="AI 学习的前置知识">
+      <i class="fa fa-chevron-left"></i> AI 学习的前置知识
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B4%E4%BD%93%E6%80%9D%E8%B7%AF"><span class="nav-number">1.</span> <span class="nav-text">整体思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%96%E5%86%99%E5%89%A7%E6%9C%AC"><span class="nav-number">2.</span> <span class="nav-text">编写剧本</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E9%95%9C%E5%9B%BE"><span class="nav-number">3.</span> <span class="nav-text">分镜图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E9%95%9C%E8%A7%86%E9%A2%91"><span class="nav-number">4.</span> <span class="nav-text">分镜视频</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%88%90%E6%9C%AC%E5%88%86%E6%9E%90"><span class="nav-number">5.</span> <span class="nav-text">成本分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BE%85%E8%A7%A3%E5%86%B3%E9%97%AE%E9%A2%98"><span class="nav-number">6.</span> <span class="nav-text">待解决问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AD%A6%E4%B9%A0%E8%B5%84%E6%96%99"><span class="nav-number">7.</span> <span class="nav-text">学习资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Jiaming Zhang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">69</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">39</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2026</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Jiaming Zhang</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : '69c4f1364bbcc54ee15e',
+      clientSecret: '584fb13110b9726f9376ce0bc1d1155357d23597',
+      repo        : 'Shaun2016.github.io',
+      owner       : 'Shaun2016',
+      admin       : ['Shaun2016'],
+      id          : '64dc0479219721dd315b576d8d6e0b68',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
